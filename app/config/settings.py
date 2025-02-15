@@ -3,7 +3,16 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+
 class Config:
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev')
-    DATABASE_URL = os.getenv('DATABASE_URL')
-    TIKTOK_API_KEY = os.getenv('TIKTOK_API_KEY')
+    LLM_API_KEY = os.getenv('CLAUDE_API_KEY')
+    LLM_API_URL = "https://api.anthropic.com/v1/messages"
+    MODEL_NAME = "claude-3-opus-20240229"
+    MAX_TOKENS = 1500
+
+    # Video processing settings
+    MIN_SCENE_CHANGE_THRESHOLD = 20.0
+    MIN_INTERVAL_SECONDS = 1.0
+
+    # API versions
+    LLM_API_VERSION = "2023-06-01"

@@ -2,6 +2,11 @@ from pydantic import BaseModel, HttpUrl, Field
 from typing import List, Optional, Dict
 from datetime import datetime
 
+from dataclasses import dataclass
+from typing import List, Optional
+import numpy as np
+from datetime import datetime
+
 
 class TaggedUser(BaseModel):
     user_id: str
@@ -90,3 +95,19 @@ class VideoRequest(BaseModel):
     cdn_url: Optional[str] = None
     commerce_info: Optional[Dict] = None
     carousel_images: Optional[List] = None
+
+
+@dataclass
+class KeyframeAudioContext:
+    frame_number: int
+    timestamp: float
+    image: np.ndarray
+    audio_transcript: str
+    window_start: float
+    window_end: float
+
+
+@dataclass
+class VideoAnalysis:
+    summary: str
+    key_moments: List[dict]

@@ -1,45 +1,33 @@
 from flask import Blueprint, request, jsonify
-from app.services.video_service import VideoAnalyticsService
-from app.models.video import VideoRequest
+from app.services.video_analytics_service import VideoAnalyticsService
+import os
 
-bp = Blueprint('video-analytics', __name__)
-analytics_service = VideoAnalyticsService()
+bp = Blueprint('video', __name__)
+video_analytics_service = VideoAnalyticsService()
 
 
-@bp.route('/add_video', methods=['POST'])
-def add_video():
+@bp.route('/analyze_video', methods=['POST'])
+def analyze_video():
     try:
-        video_data = VideoRequest(**request.json)
-        result = analytics_service.process_video(video_data)
-        return jsonify(result), 201
+        # Get video path from request
+        data = request.json
+        video_path, caption = data.get('url'), data.get('description')
+
+        # in real use case we need to download video from S3 before processing it
+
+        if not video_path:
+            return jsonify({'error': 'No video path provided'}), 400
+
+        if not os.path.exists(video_path):
+            return jsonify({'error': 'Video file not found at specified path'}), 404
+
+        # Process the video directly from the path
+        analysis = video_analytics_service.process_video(video_path, caption)
+
+        return jsonify({
+            'summary': analysis.summary,
+            'key_moments': analysis.key_moments
+        })
+
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-
-@bp.route('/suggest_themes', methods=['GET'])
-def suggest_themes():
-    try:
-        product_url = request.json["url"]
-        result = analytics_service.suggest_themes(product_url)
-
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({
-            'error': 'Failed to retrieve themes',
-            'details': str(e)
-        }), 500
-
-
-@bp.route('/get_screenplay/<theme_id>', methods=['GET'])
-def get_videos(theme_id):
-    try:
-        result = analytics_service.get_screenplay(theme_id)
-
-        return jsonify(result)
-
-    except Exception as e:
-        return jsonify({
-            'error': 'Failed to retrieve videos',
-            'details': str(e)
-        }), 500
