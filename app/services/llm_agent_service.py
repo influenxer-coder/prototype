@@ -67,7 +67,8 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
 
                 return VideoAnalysis(
                     summary=analysis_data["summary"],
-                    key_moments=analysis_data["key_moments"]
+                    key_moments=analysis_data["key_moments"],
+                    marketing_analysis=analysis_data["marketing_analysis"]
                 )
 
             except Exception as e:

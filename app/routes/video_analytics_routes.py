@@ -26,7 +26,8 @@ def analyze_video():
 
         return jsonify({
             'summary': analysis.summary,
-            'key_moments': analysis.key_moments
+            'key_moments': analysis.key_moments,
+            'marketing_analysis': analysis.marketing_analysis,
         })
 
     except Exception as e:

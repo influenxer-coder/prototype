@@ -1,5 +1,5 @@
 from pydantic import BaseModel, HttpUrl, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any
 from datetime import datetime
 
 from dataclasses import dataclass
@@ -111,3 +111,4 @@ class KeyframeAudioContext:
 class VideoAnalysis:
     summary: str
     key_moments: List[dict]
+    marketing_analysis: Any

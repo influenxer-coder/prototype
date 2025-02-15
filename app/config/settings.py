@@ -7,7 +7,7 @@ load_dotenv()
 class Config:
     LLM_API_KEY = os.getenv('CLAUDE_API_KEY')
     LLM_API_URL = "https://api.anthropic.com/v1/messages"
-    MODEL_NAME = "claude-3-opus-20240229"
+    MODEL_NAME = "claude-3-haiku-20240307"
     MAX_TOKENS = 1500
 
     # Video processing settings
