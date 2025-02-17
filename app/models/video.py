@@ -108,7 +108,6 @@ class KeyframeAudioContext:
 
 
 @dataclass
-class VideoAnalysis:
-    summary: str
+class VideoAnalysisSummary:
+    description: str
     key_moments: List[dict]
-    marketing_analysis: Any

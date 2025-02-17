@@ -43,10 +43,6 @@ def extract_json(response_text: str) -> dict:
         # Parse JSON
         data = json.loads(json_str)
 
-        # Validate expected structure
-        if not all(key in data for key in ['summary', 'key_moments']):
-            raise ValueError("Invalid JSON structure: missing required keys")
-
         return data
 
     except json.JSONDecodeError as e:
@@ -58,3 +54,21 @@ def extract_json(response_text: str) -> dict:
     except Exception as e:
         print(f"Unexpected error: {e}")
         raise
+
+
+def get_video_duration_cv2(video_path: str) -> float:
+    """
+    Get video duration using OpenCV.
+    Returns duration in seconds.
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        return 0.0
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    duration = frame_count / fps
+    cap.release()
+
+    return duration

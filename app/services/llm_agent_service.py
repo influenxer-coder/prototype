@@ -2,7 +2,7 @@ import json
 import requests
 from typing import List
 from app.config.settings import Config
-from app.models.video import KeyframeAudioContext, VideoAnalysis
+from app.models.video import KeyframeAudioContext, VideoAnalysisSummary
 from app.utils.video_utils import frame_to_base64, extract_json
 from app.utils.prompt_loader import PromptLoader
 
@@ -11,11 +11,11 @@ class LlmAgentService:
     def __init__(self):
         self.prompt_loader = PromptLoader()
 
-    def generate_summary(self, keyframes: List[KeyframeAudioContext], caption: str) -> VideoAnalysis:
+    def generate_summary(self, keyframes: List[KeyframeAudioContext], caption: str) -> VideoAnalysisSummary:
         """Send keyframes and audio to Claude for analysis."""
         try:
             # Load and format the prompt
-            prompt_template = self.prompt_loader.load_prompt('summary_generation')
+            prompt_template = self.prompt_loader.load_prompt('summary_generator')
             prompt = prompt_template.replace("{caption}", caption)
 
             content = [{
@@ -63,13 +63,14 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
                     raise Exception(f"API call failed: {response.text}")
 
                 raw_response = response.json()["content"][0]["text"]
+
+                print(raw_response)
+
                 analysis_data = extract_json(raw_response)
 
-                return VideoAnalysis(
-                    summary=analysis_data["summary"],
-                    key_moments=analysis_data["key_moments"],
-                    marketing_analysis=analysis_data["marketing_analysis"]
-                )
+                summary = analysis_data["summary"]
+
+                return summary
 
             except Exception as e:
                 print(f"Error during API call: {str(e)}")
@@ -77,4 +78,63 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
 
         except Exception as e:
             print(f"Error in generate_summary: {str(e)}")
+            raise
+
+    def generate_screenplay(self, summary, complete_transcript) -> dict:
+        """
+        Generate screenplay from video analysis and complete transcript.
+        """
+        try:
+            # Load and format the prompt
+            prompt_template = self.prompt_loader.load_prompt('screenplay_generator')
+
+            content = [{
+                "type": "text",
+                "text": prompt_template
+            }, {
+                "type": "text",
+                "text": f"""
+    === Video Analysis ===
+    {json.dumps(summary, indent=2)}
+
+    === Complete Transcript ===
+    {complete_transcript}
+    """
+            }]
+
+            try:
+                response = requests.post(
+                    Config.LLM_API_URL,
+                    headers={
+                        "x-api-key": Config.LLM_API_KEY,
+                        "anthropic-version": Config.LLM_API_VERSION,
+                        "content-type": "application/json"
+                    },
+                    json={
+                        "model": Config.MODEL_NAME,
+                        "max_tokens": Config.MAX_TOKENS,
+                        "messages": [{
+                            "role": "user",
+                            "content": content
+                        }]
+                    }
+                )
+
+                if response.status_code != 200:
+                    raise Exception(f"API call failed: {response.text}")
+
+                raw_response = response.json()["content"][0]["text"]
+
+                print(raw_response)
+
+                screenplay_data = extract_json(raw_response)
+
+                return screenplay_data
+
+            except Exception as e:
+                print(f"Error during API call: {str(e)}")
+                raise
+
+        except Exception as e:
+            print(f"Error in generate_screenplay: {str(e)}")
             raise

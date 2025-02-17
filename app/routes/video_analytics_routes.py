@@ -22,12 +22,11 @@ def analyze_video():
             return jsonify({'error': 'Video file not found at specified path'}), 404
 
         # Process the video directly from the path
-        analysis = video_analytics_service.process_video(video_path, caption)
+        summary, screenplay = video_analytics_service.process_video(video_path, caption)
 
         return jsonify({
-            'summary': analysis.summary,
-            'key_moments': analysis.key_moments,
-            'marketing_analysis': analysis.marketing_analysis,
+            'summary': summary,
+            'screenplay': screenplay['screenplay'],
         })
 
     except Exception as e:

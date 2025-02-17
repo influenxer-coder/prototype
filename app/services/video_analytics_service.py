@@ -3,8 +3,8 @@ from typing import List
 import cv2
 import numpy as np
 from app.config.settings import Config
-from app.models.video import KeyframeAudioContext, VideoAnalysis
-from app.utils.video_utils import frame_to_base64
+from app.models.video import KeyframeAudioContext, VideoAnalysisSummary
+from app.utils.video_utils import frame_to_base64, get_video_duration_cv2
 from app.services.audio_analytics_service import AudioAnalyticsService
 from app.services.llm_agent_service import LlmAgentService
 
@@ -59,11 +59,19 @@ class VideoAnalyticsService:
         cap.release()
         return keyframes
 
-    def process_video(self, video_path: str, caption: str) -> VideoAnalysis:
+    def process_video(self, video_path: str, caption: str):
         """Process video and generate analysis."""
         print("Extracting keyframes...")
         keyframes = self.extract_keyframes(video_path)
         print(f"Found {len(keyframes)} keyframes")
+
+        video_duration = get_video_duration_cv2(video_path)
+
+        complete_transcript = self.audio_analytics_service.get_transcript(
+            video_path,
+            start_time=0,
+            end_time=video_duration
+        )
 
         print("Processing audio for each keyframe...")
         keyframe_contexts = []
@@ -79,7 +87,7 @@ class VideoAnalyticsService:
             )
 
             context = KeyframeAudioContext(
-                frame_number=i+1,
+                frame_number=i + 1,
                 timestamp=timestamp,
                 image=frame,
                 audio_transcript=audio_transcript,
@@ -88,6 +96,12 @@ class VideoAnalyticsService:
             )
             keyframe_contexts.append(context)
 
-        print("Getting analysis from Claude...")
-        analysis = self.llm_agent_service.generate_summary(keyframe_contexts, caption)
-        return analysis
+        # call summary generator
+        print("Calling AGENT to generate summary...")
+        summary = self.llm_agent_service.generate_summary(keyframe_contexts, caption)
+
+        # call screenplay generator
+        print("Calling AGENT to generate screenplay...")
+        screenplay = self.llm_agent_service.generate_screenplay(summary, complete_transcript)
+
+        return summary, screenplay

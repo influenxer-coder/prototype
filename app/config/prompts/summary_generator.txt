@@ -17,11 +17,11 @@ TASKS:
    - Note how it leads into the main content
    - Analyze the shot type and composition
 
-2. Identify and describe KEY MOMENTS, paying attention to:
+2. Identify and describe the KEY MOMENTS from the video, paying attention to:
+   - The action scene
    - How each moment maintains viewer engagement
-   - Marketing techniques used (storytelling, social proof, FOMO, etc.)
-   - Call-to-action placement and style
-   - Psychological triggers employed
+   - Psychological triggers used
+   - Marketing techniques used to activate these psychological triggers
    - Shot types:
      * Close-up: Detailed view of face or object
      * Medium shot: Upper body or partial view
@@ -33,47 +33,38 @@ TASKS:
 3. Generate a detailed summary that captures:
    - Key moments in the video and the overall narrative structure
    - Marketing strategy
-   - Content style and tone
    - Hook-to-CTA flow
    - Engagement techniques used
-   - Visual storytelling approach
 
 REMEMBER:
 1. While describing a key moment ALWAYS look at the description of the previous key moments to ensure narrative flow
-2. The summary must reflect both content and marketing strategy
+2. The summary must reflect the content of the key moments and the marketing techniques that made the video successful
 3. Always include Moment 1 in key_moments as it is the HOOK
-4. Identify specific marketing techniques that made the video successful
-5. Note how the creator maintains engagement throughout
-6. Pay attention to the style of presenting information
-7. Look for psychological triggers and persuasion tactics
-8. Analyze how shot types contribute to the message
-9. Make sure the JSON format is valid
+4. Note how the creator maintains engagement throughout
 
 Please provide your response in the following JSON format:
 {
-    "summary": "A concise summary capturing both content and marketing approach",
-    "key_moments": [
-        {
-            "moment_id": "1",
-            "description": "Brief description of Moment 1 (HOOK)",
-            "technique": "Marketing technique used in this moment",
-            "shot_type": "Type of shot used (close-up, medium, wide, etc.)"
-        },
-        {
-            "moment_id": "2",
-            "description": "Brief description of Moment 2",
-            "technique": "Marketing technique used in this moment",
-            "shot_type": "Type of shot used"
-        }
-    ],
-    "marketing_analysis": {
-        "primary_hook_type": "Main type of hook used (curiosity, problem-solution, etc.)",
-        "engagement_tactics": ["List of tactics used to maintain viewer interest"],
-        "psychological_triggers": ["List of psychological triggers employed"],
-        "call_to_action_style": "Description of how the CTA was presented"
+    "summary": {
+        "description": "A summary capturing the key moments and the marketing approach used",
+        "key_moments": [
+            {
+                "moment_id": "1",
+                "description": "Brief description of Moment 1 (HOOK)",
+                "marketing_technique": "Marketing technique used at this moment with brief context",
+                "shot_type": "Type of shot used (close-up, medium, wide, etc.)"
+            },
+            {
+                "moment_id": "2",
+                "description": "Brief description of Moment 2",
+                "marketing_technique": "Marketing technique used at this moment with brief context",
+                "shot_type": "Type of shot used"
+            }
+        ]
     }
 }
 
-IMPORTANT: Please validate the JSON before returning it as response. If the JSON is invalid, regenerate the JSON response.
+IMPORTANT:
+1. Please validate the JSON before returning it as response. If the JSON is invalid, regenerate the JSON response.
+2. For double quotes inside strings, please use ESCAPE CHARACTERS.
 
 Wait for me to provide input and then return the response. The final response should not contain any other text apart from the above JSON.
