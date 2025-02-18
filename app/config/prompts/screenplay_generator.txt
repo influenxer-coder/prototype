@@ -11,12 +11,14 @@ You will receive two pieces of information:
             {
                 "moment_id": "1",
                 "description": "Brief description of moment 1",
+                "on_screen_text": "The relevant text seen on the visual frame at this moment",
                 "marketing_technique": "Marketing technique used at this moment with brief context",
                 "shot_type": "Type of shot used"
             },
             {
                 "moment_id": "2",
                 "description": "Brief description of moment 2",
+                "on_screen_text": The relevant text seen on the visual frame at this moment",
                 "marketing_technique": "Marketing technique used at this moment with brief context",
                 "shot_type": "Type of shot used"
             }

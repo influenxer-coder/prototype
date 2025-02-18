@@ -19,6 +19,7 @@ TASKS:
 
 2. Identify and describe the KEY MOMENTS from the video, paying attention to:
    - The action scene
+   - The relevant text seen on the visual frame at this moment
    - How each moment maintains viewer engagement
    - Psychological triggers used
    - Marketing techniques used to activate these psychological triggers
@@ -50,12 +51,14 @@ Please provide your response in the following JSON format:
             {
                 "moment_id": "1",
                 "description": "Brief description of Moment 1 (HOOK)",
+                "on_screen_text": "The relevant text seen on the visual frame at this moment",
                 "marketing_technique": "Marketing technique used at this moment with brief context",
                 "shot_type": "Type of shot used (close-up, medium, wide, etc.)"
             },
             {
                 "moment_id": "2",
                 "description": "Brief description of Moment 2",
+                "on_screen_text": "The relevant text seen on the visual frame at this moment",
                 "marketing_technique": "Marketing technique used at this moment with brief context",
                 "shot_type": "Type of shot used"
             }
@@ -65,6 +68,6 @@ Please provide your response in the following JSON format:
 
 IMPORTANT:
 1. Please validate the JSON before returning it as response. If the JSON is invalid, regenerate the JSON response.
-2. For double quotes inside strings, please use ESCAPE CHARACTERS.
+2. For double/single quotes inside strings, please use ESCAPE CHARACTERS.
 
 Wait for me to provide input and then return the response. The final response should not contain any other text apart from the above JSON.
