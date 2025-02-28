@@ -9,6 +9,7 @@ from app.utils.prompt import load_prompt, extract_json
 from app.utils.video import frame_to_base64
 
 
+# TODO: Interface class with actual classes for Chat GPT, Claude AI, Perplexity
 class LlmAgentService:
     def generate_summary(self, keyframes: List[KeyframeAudioContext], caption: str) -> VideoAnalysisSummary:
         """Send keyframes and audio to Claude for analysis."""

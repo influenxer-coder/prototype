@@ -17,3 +17,17 @@ class Config:
 
     # API versions
     LLM_API_VERSION = "2023-06-01"
+
+    # AWS settings
+    AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
+    AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
+    AWS_REGION = "us-east-2"
+
+    # Scoring Settings
+    WEIGHTS = {
+        "digg_count": 0.2,  # Likes
+        "comment_count": 0.3,  # Comments
+        "share_count": 0.2,  # Shares
+        "play_count": 0.2,  # Views
+        "recentness": 0.1  # Recentness
+    }
