@@ -12,6 +12,7 @@ Flask App to analyze TikTok videos
     ```
 
 3. Activate the virtual environment
+
     In Windows:
     ```
     .venv\Scripts\activate
@@ -21,7 +22,7 @@ Flask App to analyze TikTok videos
     source .venv/bin/activate
     ```
 
-4. Install all the project dependencies
+5. Install all the project dependencies
     ```
     pip install -r requirements.txt
     ```
