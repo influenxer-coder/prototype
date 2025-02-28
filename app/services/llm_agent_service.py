@@ -1,21 +1,20 @@
 import json
-import requests
 from typing import List
+
+import requests
+
 from app.config.settings import Config
 from app.models.video import KeyframeAudioContext, VideoAnalysisSummary
-from app.utils.video_utils import frame_to_base64, extract_json
-from app.utils.prompt_loader import PromptLoader
+from app.utils.prompt import load_prompt, extract_json
+from app.utils.video import frame_to_base64
 
 
 class LlmAgentService:
-    def __init__(self):
-        self.prompt_loader = PromptLoader()
-
     def generate_summary(self, keyframes: List[KeyframeAudioContext], caption: str) -> VideoAnalysisSummary:
         """Send keyframes and audio to Claude for analysis."""
         try:
             # Load and format the prompt
-            prompt_template = self.prompt_loader.load_prompt('summary_generator')
+            prompt_template = load_prompt('summary_generator', 'claude')
             prompt = prompt_template.replace("{caption}", caption)
 
             content = [{
@@ -86,7 +85,7 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
         """
         try:
             # Load and format the prompt
-            prompt_template = self.prompt_loader.load_prompt('screenplay_generator')
+            prompt_template = load_prompt('screenplay_generator', 'claude')
 
             content = [{
                 "type": "text",

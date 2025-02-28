@@ -1,6 +1,8 @@
-from flask import Blueprint, request, jsonify
-from app.services.video_analytics_service import VideoAnalyticsService
 import os
+
+from flask import Blueprint, request, jsonify
+
+from app.services.video_analytics_service import VideoAnalyticsService
 
 bp = Blueprint('video', __name__)
 video_analytics_service = VideoAnalyticsService()

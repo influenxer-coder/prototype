@@ -1,11 +1,10 @@
-from pydantic import BaseModel, HttpUrl, Field
-from typing import List, Optional, Dict, Any
-from datetime import datetime
-
 from dataclasses import dataclass
-from typing import List, Optional
-import numpy as np
 from datetime import datetime
+from typing import Dict
+from typing import List, Optional
+
+import numpy as np
+from pydantic import BaseModel, HttpUrl
 
 
 class TaggedUser(BaseModel):

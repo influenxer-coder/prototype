@@ -2,11 +2,12 @@ from typing import List
 
 import cv2
 import numpy as np
+
 from app.config.settings import Config
-from app.models.video import KeyframeAudioContext, VideoAnalysisSummary
-from app.utils.video_utils import frame_to_base64, get_video_duration_cv2
+from app.models.video import KeyframeAudioContext
 from app.services.audio_analytics_service import AudioAnalyticsService
 from app.services.llm_agent_service import LlmAgentService
+from app.utils.video import get_video_duration_cv2
 
 
 class VideoAnalyticsService:
