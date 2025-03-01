@@ -19,6 +19,4 @@ def shutdown_session(exceptions=None):
 
 
 if __name__ == '__main__':
-    # Set the console encoding to UTF-8
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
     app.run(debug=True)
