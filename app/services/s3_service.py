@@ -32,3 +32,16 @@ class S3Service:
         except Exception as e:
             print(f"An error occurred while uploading the video to s3 {filename}: {str(e)}")
             return None
+
+    def download_from_s3(self, s3_url: str, local_path: str) -> bool:
+        try:
+            # Parse the S3 URL
+            bucket_name = s3_url.split("/")[2]
+            key = "/".join(s3_url.split("/")[3:])
+
+            # Download the file
+            self.client.download_file(bucket_name, key, local_path)
+            return True
+        except Exception as e:
+            print(f"Error downloading {s3_url}: {e}")
+            return False

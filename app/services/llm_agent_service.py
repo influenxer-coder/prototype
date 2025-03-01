@@ -74,11 +74,11 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
 
             except Exception as e:
                 print(f"Error during API call: {str(e)}")
-                raise
+                raise e
 
         except Exception as e:
             print(f"Error in generate_summary: {str(e)}")
-            raise
+            raise e
 
     def generate_screenplay(self, summary, complete_transcript) -> dict:
         """
@@ -133,8 +133,8 @@ Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
 
             except Exception as e:
                 print(f"Error during API call: {str(e)}")
-                raise
+                raise e
 
         except Exception as e:
             print(f"Error in generate_screenplay: {str(e)}")
-            raise
+            raise e

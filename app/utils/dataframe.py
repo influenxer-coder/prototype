@@ -1,8 +1,10 @@
 from datetime import datetime
 from typing import Dict, List
-from app.config.settings import Config
+
 import pandas as pd
 from pandas.core.frame import DataFrame
+
+from app.config.settings import Config
 
 
 def calculate_recentness_score(create_time):

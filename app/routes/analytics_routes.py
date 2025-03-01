@@ -2,10 +2,10 @@ import os
 
 from flask import Blueprint, request, jsonify
 
-from app.services.video_analytics_service import VideoAnalyticsService
+from app.services.video_service import VideoService
 
 bp = Blueprint('video', __name__)
-video_analytics_service = VideoAnalyticsService()
+video_analytics_service = VideoService()
 
 
 @bp.route('/analyze_video', methods=['POST'])

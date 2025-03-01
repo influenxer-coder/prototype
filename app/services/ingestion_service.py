@@ -1,17 +1,21 @@
 import os
 import random
+import tempfile
 import time
 
 from pandas.core.frame import DataFrame
 
+from app.services.audio_service import AudioService
 from app.services.s3_service import S3Service
 from app.services.scraper_service import ScraperService
+from app.utils.audio import extract_audio
 
 
 class IngestionService:
     def __init__(self):
         self.s3 = S3Service()
         self.scraper = ScraperService()
+        self.audio = AudioService()
         self.video_bucket = "tapestry-tiktok-videos"
 
     def download_vids(self, df: DataFrame) -> DataFrame:
@@ -20,17 +24,21 @@ class IngestionService:
         for index, row in df.iterrows():
             url = row['url']
             post_id = row['post_id']
-            vid_link = self.get_s3_video_link(url, post_id)
+            vid_link = self._get_s3_video_link(url, post_id)
             df.at[index, "video_link"] = vid_link
 
         self.scraper.close_browser()
+        return df
+
+    def transcribe(self, df: DataFrame) -> DataFrame:
+        df['audio_transcription'] = df['video_link'].apply(self._transcribe_video)
         return df
 
     """
         Helper functions
     """
 
-    def get_s3_video_link(self, video_url: str, post_id: str):
+    def _get_s3_video_link(self, video_url: str, post_id: str) -> str | None:
         filename = f"tiktok_{post_id}.mp4"
 
         if self.s3.exists_in_bucket(self.video_bucket, filename):
@@ -46,3 +54,24 @@ class IngestionService:
         # Wait for 5-15 secs before downloading the next video
         time.sleep(random.randint(5, 15))
         return video_link
+
+    def _transcribe_video(self, s3_url: str) -> str | None:
+        video_filename = os.path.basename(s3_url)
+        video_dir = tempfile.gettempdir()
+
+        video_file_path = f"{video_dir}/{video_filename}"
+        audio_file_path = f"{video_dir}/{os.path.splitext(video_filename)[0]}.wav"
+
+        if not self.s3.download_from_s3(s3_url, video_file_path):
+            return None
+
+        if not extract_audio(video_file_path, audio_file_path):
+            return None
+
+        transcription = self.audio.transcribe(audio_file_path)
+
+        os.remove(video_file_path)
+        os.remove(audio_file_path)
+
+        print(f"Transcript: \n{transcription}")
+        return transcription

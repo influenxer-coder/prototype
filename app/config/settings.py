@@ -15,6 +15,12 @@ class Config:
     MIN_SCENE_CHANGE_THRESHOLD = 20.0
     MIN_INTERVAL_SECONDS = 1.0
 
+    # Audio processing settings
+    AUDIO_MODELS = [
+        "whisper",
+        "google"
+    ]
+
     # API versions
     LLM_API_VERSION = "2023-06-01"
 
