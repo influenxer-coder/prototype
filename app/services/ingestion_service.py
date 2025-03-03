@@ -6,9 +6,11 @@ import time
 from pandas.core.frame import DataFrame
 
 from app.services.audio_service import AudioService
+from app.services.llm_agent_service import LlmAgentService
 from app.services.s3_service import S3Service
 from app.services.scraper_service import ScraperService
 from app.utils.audio import extract_audio
+from app.utils.video import extract_hook_frame
 
 
 class IngestionService:
@@ -16,6 +18,7 @@ class IngestionService:
         self.s3 = S3Service()
         self.scraper = ScraperService()
         self.audio = AudioService()
+        self.llm = LlmAgentService()
         self.video_bucket = "tapestry-tiktok-videos"
 
     def download_vids(self, df: DataFrame) -> DataFrame:
@@ -32,6 +35,10 @@ class IngestionService:
 
     def transcribe(self, df: DataFrame) -> DataFrame:
         df['audio_transcription'] = df['video_link'].apply(self._transcribe_video)
+        return df
+
+    def add_hook(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._get_hook, axis=1)
         return df
 
     """
@@ -75,3 +82,25 @@ class IngestionService:
 
         print(f"Transcript: \n{transcription}")
         return transcription
+
+    def _get_hook(self, row):
+        s3_url = row["video_link"]
+
+        video_filename = os.path.basename(s3_url)
+        video_dir = tempfile.gettempdir()
+        video_file_path = f"{video_dir}/{video_filename}"
+
+        if not self.s3.download_from_s3(s3_url, video_file_path):
+            row["visual_hook"] = None
+            return row
+
+        img = extract_hook_frame(video_file_path)
+        visual_hook = self.llm.generate_hook(img)
+        os.remove(video_file_path)
+
+        print("-" * 80)
+        print(f"Hook: {visual_hook}")
+        print("-" * 80)
+
+        row["visual_hook"] = visual_hook
+        return row
