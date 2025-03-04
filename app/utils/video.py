@@ -45,6 +45,36 @@ def get_video_duration_cv2(video_path: str) -> float:
     return duration
 
 
+def extract_hook_frame(video_path: str, frame_number: int = 5) -> np.ndarray | None:
+    """
+    Extract a specific frame from a video file
+
+    Args:
+        video_path (str): Path to the video file
+        frame_number (int): Frame number to extract (default: 5)
+
+    Returns:
+        numpy.ndarray: The extracted frame, or None if extraction failed
+    """
+    frame = None
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        print(f"Error opening video file: {video_path}")
+        return None
+
+    current_frame = 0
+    while current_frame < frame_number:
+        ret, frame = cap.read()
+        if not ret:
+            print(f"Error: Video has fewer than {frame_number} frames")
+            cap.release()
+            return None
+        current_frame += 1
+
+    cap.release()
+    return frame
+
+
 def extract_keyframes(video_path: str) -> List[tuple]:
     """
         Extract keyframes from video based on scene changes.

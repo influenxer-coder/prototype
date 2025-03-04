@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 
-def load_prompt(prompt_name: str, provider: str) -> str:
+def load_prompt(prompt_name: str, provider: str = 'claude') -> str:
     """
     Load prompt from a text file.
 
@@ -15,7 +15,7 @@ def load_prompt(prompt_name: str, provider: str) -> str:
     """
     try:
         # Get the absolute path to the prompts directory
-        provider_name = provider if provider else 'claude'
+        provider_name = provider
         prompts_dir = Path(__file__).parent.parent / 'config' / 'prompts' / provider_name
         prompt_path = prompts_dir / f"{prompt_name}.txt"
 
