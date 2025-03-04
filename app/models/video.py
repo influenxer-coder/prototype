@@ -107,6 +107,14 @@ class KeyframeAudioContext:
 
 
 @dataclass
+class ShootingStyle:
+    visual_style_summary: str
+    visual_style: str
+    audio_style: str
+    creator_instructions: str
+
+
+@dataclass
 class VideoAnalysisSummary:
     description: str
     key_moments: List[dict]

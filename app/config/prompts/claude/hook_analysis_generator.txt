@@ -1,0 +1,27 @@
+I'm analyzing a TikTok video to understand the creator's style and want actionable instructions to recreate it.
+
+I have a frame from the video and the transcript:
+
+TRANSCRIPT:
+{transcript}
+
+Based on both the visual frame and the transcript:
+
+1. Provide a detailed breakdown of the creator's VISUAL STYLE (camera work, framing, lighting, editing, text overlays, transitions, etc.)
+
+2. Analyze the AUDIO/VERBAL STYLE (tone, pacing, word choice, persuasion techniques, how they introduce the topic, call-to-actions, etc.)
+
+3. Give me STEP-BY-STEP INSTRUCTIONS on how to recreate this style for my own TikTok, including:
+   - How to set up the shot
+   - What camera angles and movements to use
+   - What to say and how to say it
+   - What text/graphics to include
+   - How to hook viewers in the first few seconds
+   - How to structure the content for maximum engagement
+
+Format your response in 2 clear sections with these exact headings:
+VISUAL_STYLE: [detailed description]
+AUDIO_STYLE: [detailed description]
+CREATOR_INSTRUCTIONS: [numbered steps to recreate this style]
+
+Make all advice extremely specific and actionable - I want to be able to follow these steps to make a similar video.

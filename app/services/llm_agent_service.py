@@ -1,17 +1,44 @@
 import json
-from typing import List
+from typing import Dict, List
 
 import numpy as np
 import requests
 
 from app.config.settings import Config
-from app.models.video import KeyframeAudioContext, VideoAnalysisSummary
+from app.models.video import KeyframeAudioContext, ShootingStyle, VideoAnalysisSummary
 from app.utils.prompt import load_prompt, extract_json
 from app.utils.video import frame_to_base64
 
 
 # TODO: Interface class with actual classes for Chat GPT, Claude AI, Perplexity
 class LlmAgentService:
+
+    def _format_hook_details(self, analysis_text: str) -> Dict:
+        creator_instructions = ""
+
+        if "VISUAL_STYLE:" in analysis_text and "AUDIO_STYLE:" in analysis_text:
+            parts = analysis_text.split("AUDIO_STYLE:")
+            visual_part = parts[0].split("VISUAL_STYLE:")[1].strip()
+            visual_style = visual_part
+
+            if "CREATOR_INSTRUCTIONS:" in parts[1]:
+                remaining = parts[1].split("CREATOR_INSTRUCTIONS:")
+                audio_style = remaining[0].strip()
+                creator_instructions = remaining[1].strip()
+            else:
+                audio_style = parts[1].strip()
+        else:
+            # Fallback if the format is different
+            visual_style = "Could not parse visual style from analysis."
+            audio_style = "Could not parse audio style from analysis."
+            creator_instructions = analysis_text  # Just use the full text as instructions
+
+        return {
+            "visual_style": visual_style,
+            "audio_style": audio_style,
+            "creator_instructions": creator_instructions
+        }
+
     def _generate_response(self, content):
         try:
             response = requests.post(
@@ -131,7 +158,7 @@ class LlmAgentService:
             print(f"Error in generate_screenplay: {str(e)}")
             return {}
 
-    def generate_hook(self, frame: np.ndarray) -> str:
+    def generate_screen_hook(self, frame: np.ndarray) -> str:
         """
         Extract the hook text from a video frame using Claude AI
 
@@ -152,4 +179,97 @@ class LlmAgentService:
                     "statement or hook. If there is no hook, return 'NO HOOK'."
                     "Return just the text without any additional commentary."
         }, base64_image]
-        return self._generate_response(content)
+
+        try:
+            response = self._generate_response(content)
+            if response == 'NO HOOK':
+                return 'No caption text detected on screen.'
+            return response
+        except Exception as e:
+            print(f"API error in caption extraction: {e}")
+            return f"Error: Caption extraction failed"
+
+    def generate_visual_style(self, frame: np.ndarray) -> str:
+        """
+        Get a concise 10-15 word description of what the creator is doing
+
+        Args:
+            frame (np.ndarray): Video image frame
+
+        Returns:
+            str: Concise description of the visual style
+        """
+        if frame is None:
+            return "Error: Could not extract frame from video."
+
+        prompt = load_prompt("visual_style_generator")
+
+        base64_image = frame_to_base64(frame)
+        content = [{
+            "type": "text",
+            "text": prompt
+        }, base64_image]
+
+        try:
+            response = self._generate_response(content)
+
+            # Make sure it's not too long
+            words = response.split()
+            if len(words) > 15:
+                response = ' '.join(words[:15])
+
+            return response
+        except Exception as e:
+            print(f"API error in visual style generation: {e}")
+            return f"Error: Visual Style generation failed"
+
+    def generate_hook_analysis(self, frame: np.ndarray, transcript: str = "") -> ShootingStyle:
+        """
+        Analyze the given frame and transcript to describe what the creator is doing and provide actionable instructions
+
+        Args:
+            frame (np.ndarray): Image frame from the TikTok video
+            transcript (str): The video transcript to enhance style analysis
+
+        Returns:
+            ShootingStyle: Detailed style information with actionable instructions
+        """
+        if frame is None:
+            return ShootingStyle(
+                visual_style_summary="Error: Could not extract frame from video.",
+                visual_style="Error: Could not extract frame from video.",
+                audio_style="Error: Could not analyze audio style.",
+                creator_instructions="Error: Could not generate instructions."
+            )
+
+        visual_style_summary = self.generate_visual_style(frame)
+
+        transcript = transcript if transcript else ''
+        transcript = transcript if len(transcript) <= 500 else transcript[:500] + '...'
+
+        prompt_template = load_prompt('hook_analysis_generator')
+        prompt = prompt_template.replace("{transcript}", transcript)
+
+        base64_image = frame_to_base64(frame)
+        content = [{
+            "type": "text",
+            "text": prompt
+        }, base64_image]
+
+        try:
+            response = self._generate_response(content)
+            formatted_response = self._format_hook_details(response)
+            return ShootingStyle(
+                visual_style_summary=visual_style_summary,
+                visual_style=formatted_response['visual_style'],
+                audio_style=formatted_response['audio_style'],
+                creator_instructions=formatted_response['creator_instructions']
+            )
+        except Exception as e:
+            print(f"API error in scene analysis: {e}")
+            return ShootingStyle(
+                visual_style_summary=visual_style_summary,
+                visual_style="Error: Scene analysis failed",
+                audio_style="Error: Could not analyze audio style",
+                creator_instructions="Error: Could not generate instructions"
+            )

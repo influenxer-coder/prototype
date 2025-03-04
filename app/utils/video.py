@@ -45,22 +45,26 @@ def get_video_duration_cv2(video_path: str) -> float:
     return duration
 
 
-def extract_hook_frame(video_path: str, frame_number: int = 5) -> np.ndarray | None:
+def extract_hook_frame(video_path: str, frame_time: int = 1) -> np.ndarray | None:
     """
     Extract a specific frame from a video file
 
     Args:
+        frame_time (int): Time to extract the frame (default: 1)
         video_path (str): Path to the video file
-        frame_number (int): Frame number to extract (default: 5)
 
     Returns:
         numpy.ndarray: The extracted frame, or None if extraction failed
     """
+
     frame = None
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         print(f"Error opening video file: {video_path}")
         return None
+
+    fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_number = fps * frame_time
 
     current_frame = 0
     while current_frame < frame_number:
