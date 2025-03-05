@@ -1,15 +1,22 @@
 import os
 
+from enum import Enum
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
+class Model(Enum):
+    CLAUDE_3_HAIKU = "claude-3-haiku-20240307"
+    CLAUDE_3_SONNET = "claude-3-5-sonnet-20240620"
+
+
 class Config:
     LLM_API_KEY = os.getenv('CLAUDE_API_KEY')
     LLM_API_URL = "https://api.anthropic.com/v1/messages"
-    MODEL_NAME = "claude-3-haiku-20240307"
-    # MODEL_NAME = "claude-3-5-sonnet-20240620"
+
+    MODEL = Model
+
     MAX_TOKENS = 1500
 
     # Video processing settings

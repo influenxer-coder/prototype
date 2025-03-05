@@ -12,7 +12,7 @@ from app.utils.video import frame_to_base64
 
 # TODO: Interface class with actual classes for Chat GPT, Claude AI, Perplexity
 class LlmAgentService:
-    def _generate_response(self, content):
+    def _generate_response(self, content, model=Config.MODEL.CLAUDE_3_HAIKU.value):
         try:
             response = requests.post(
                 Config.LLM_API_URL,
@@ -22,7 +22,7 @@ class LlmAgentService:
                     "content-type": "application/json"
                 },
                 json={
-                    "model": Config.MODEL_NAME,
+                    "model": model,
                     "max_tokens": Config.MAX_TOKENS,
                     "messages": [{
                         "role": "user",
@@ -38,10 +38,10 @@ class LlmAgentService:
         except Exception as e:
             raise e
 
-    def _get_response_from_agent(self, content, json_response=True):
+    def _get_response_from_agent(self, content, json_response=True, model=Config.MODEL.CLAUDE_3_HAIKU.value):
         while True:
             try:
-                raw_response = self._generate_response(content)
+                raw_response = self._generate_response(content, model)
                 if json_response:
                     return extract_json(raw_response)
                 return raw_response
@@ -175,7 +175,7 @@ class LlmAgentService:
                 })
                 content.append(frame_to_base64(kf.image))
 
-            response = self._get_response_from_agent(content)
+            response = self._get_response_from_agent(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
 
             return response
 
