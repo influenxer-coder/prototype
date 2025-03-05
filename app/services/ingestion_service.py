@@ -1,3 +1,4 @@
+import json
 import os
 import random
 import tempfile
@@ -5,11 +6,13 @@ import time
 
 from pandas.core.frame import DataFrame
 
+from app.models.video import ShootingStyle
 from app.services.audio_service import AudioService
 from app.services.llm_agent_service import LlmAgentService
 from app.services.s3_service import S3Service
 from app.services.scraper_service import ScraperService
 from app.utils.audio import extract_audio
+from app.utils.transcript import get_audio_hook
 from app.utils.video import extract_hook_frame
 
 
@@ -34,7 +37,7 @@ class IngestionService:
         return df
 
     def transcribe(self, df: DataFrame) -> DataFrame:
-        df['audio_transcription'] = df['video_link'].apply(self._transcribe_video)
+        df["full_script"] = df["video_link"].apply(self._transcribe_video)
         return df
 
     def add_hook(self, df: DataFrame) -> DataFrame:
@@ -85,22 +88,34 @@ class IngestionService:
 
     def _get_hook(self, row):
         s3_url = row["video_link"]
+        full_script = row["full_script"]
 
         video_filename = os.path.basename(s3_url)
         video_dir = tempfile.gettempdir()
         video_file_path = f"{video_dir}/{video_filename}"
 
         if not self.s3.download_from_s3(s3_url, video_file_path):
-            row["visual_hook"] = None
+            row["screen_hook"] = None
+            row["audio_hook"] = None
+            row["style"] = json.dumps(ShootingStyle("", "", "", "").__dict__)
             return row
 
-        img = extract_hook_frame(video_file_path)
-        visual_hook = self.llm.generate_hook(img)
+        frame = extract_hook_frame(video_file_path, frame_time=1)
+        screen_hook = self.llm.generate_screen_hook(frame)
+        audio_hook = get_audio_hook(full_script)
+        shooting_style = self.llm.generate_hook_analysis(frame, full_script)
+
         os.remove(video_file_path)
 
         print("-" * 80)
-        print(f"Hook: {visual_hook}")
+        print(f"HOOK")
+        print(f"\tScreen Hook: {screen_hook}")
+        print(f"\tAudio Hook: {audio_hook}")
+        print(f"\tStyle: {shooting_style.__dict__}")
         print("-" * 80)
 
-        row["visual_hook"] = visual_hook
+        row["screen_hook"] = screen_hook
+        row["audio_hook"] = audio_hook
+        row["style"] = json.dumps(shooting_style.__dict__)
+
         return row

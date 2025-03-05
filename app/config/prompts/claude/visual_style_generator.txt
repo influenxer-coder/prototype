@@ -1,0 +1,11 @@
+This is a frame from a TikTok video.
+
+Provide a VERY CONCISE summary (10-15 words only) that clearly describes what the creator is doing to promote a product/service.
+
+Focus on the action and technique being used, such as:
+- "Creator demonstrates makeup application in close-up with before/after comparison"
+- "Person unboxing product with enthusiastic reaction and product close-up"
+- "Expert giving quick tutorial with text overlays highlighting key benefits"
+- "Creator using product in daily routine while narrating benefits"
+
+DO NOT include any additional commentary. ONLY provide the concise 10-15 word description.
