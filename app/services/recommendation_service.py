@@ -56,6 +56,9 @@ class RecommendationService:
             )
             keyframe_contexts.append(context)
 
+        # clean up
+        os.remove(audio_path)
+
         # call summary generator
         print("Calling AGENT to generate summary...")
         summary = self.llm_agent_service.generate_summary(keyframe_contexts, caption)
