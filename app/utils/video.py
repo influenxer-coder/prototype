@@ -79,14 +79,16 @@ def extract_hook_frame(video_path: str, frame_time: int = 1) -> np.ndarray | Non
     return frame
 
 
-def extract_keyframes(video_path: str) -> List[tuple]:
+def extract_keyframes(video_path: str, max_duration_seconds: float = 5.0) -> List[tuple]:
     """
-        Extract keyframes from video based on scene changes.
+    Extract keyframes from video based on scene changes up to a specified duration.
+
     Args:
-        video_path: location of video file
+        video_path: Path to the video file
+        max_duration_seconds: Maximum duration in seconds to extract keyframes from (None for entire video)
 
     Returns:
-        List[tuple]: Each item contains the frame number, frame time and frame(image)
+        List of tuples containing (frame_number, timestamp, frame)
     """
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -101,9 +103,18 @@ def extract_keyframes(video_path: str) -> List[tuple]:
     frame_number = 0
     frames_extracted = {}
 
+    # Calculate the maximum frame number based on duration if specified
+    max_frame = None
+    if max_duration_seconds is not None:
+        max_frame = int(max_duration_seconds * fps)
+
     while True:
         ret, frame = cap.read()
         if not ret:
+            break
+
+        # Check if we have reached the maximum duration
+        if max_frame is not None and frame_number >= max_frame:
             break
 
         if prev_frame is None:
@@ -125,7 +136,7 @@ def extract_keyframes(video_path: str) -> List[tuple]:
         frame_number += 1
         frames_since_last_keyframe += 1
 
-    if frame_number not in frames_extracted:
+    if frame_number not in frames_extracted and prev_frame is not None:
         keyframes.append((frame_number, frame_number / fps, prev_frame.copy()))
 
     cap.release()

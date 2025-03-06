@@ -5,7 +5,8 @@ import numpy as np
 import requests
 
 from app.config.settings import Config
-from app.models.video import KeyframeAudioContext, ShootingStyle, VideoAnalysisSummary
+from app.models.video import ShootingStyle, VideoAnalysisSummary
+from app.models.video import KeyframeContext, Video
 from app.utils.prompt import load_prompt, extract_json
 from app.utils.video import frame_to_base64
 
@@ -39,7 +40,7 @@ class LlmAgentService:
             "creator_instructions": creator_instructions
         }
 
-    def _generate_response(self, content):
+    def _generate_response(self, content, model=Config.MODEL.CLAUDE_3_HAIKU.value):
         try:
             response = requests.post(
                 Config.LLM_API_URL,
@@ -49,7 +50,7 @@ class LlmAgentService:
                     "content-type": "application/json"
                 },
                 json={
-                    "model": Config.MODEL_NAME,
+                    "model": model,
                     "max_tokens": Config.MAX_TOKENS,
                     "messages": [{
                         "role": "user",
@@ -65,11 +66,13 @@ class LlmAgentService:
         except Exception as e:
             raise e
 
-    def _generate_json_response(self, content):
+    def _get_response_from_agent(self, content, json_response=True, model=Config.MODEL.CLAUDE_3_HAIKU.value):
         while True:
             try:
-                raw_response = self._generate_response(content)
-                return extract_json(raw_response)
+                raw_response = self._generate_response(content, model)
+                if json_response:
+                    return extract_json(raw_response)
+                return raw_response
             except json.JSONDecodeError:
                 print(f"Retrying response generation")
             except Exception as e:
@@ -77,9 +80,9 @@ class LlmAgentService:
 
     def generate_summary(
             self,
-            keyframes: List[KeyframeAudioContext],
+            keyframes: List[KeyframeContext],
             caption: str
-    ) -> VideoAnalysisSummary:
+    ):
         """Send keyframes and audio to Claude for analysis."""
         try:
             # Load and format the prompt
@@ -111,7 +114,7 @@ class LlmAgentService:
                 })
 
             try:
-                analysis_data = self._generate_json_response(content)
+                analysis_data = self._get_response_from_agent(content)
 
                 summary = analysis_data["summary"]
 
@@ -119,11 +122,9 @@ class LlmAgentService:
 
             except Exception as e:
                 print(f"Error during API call: {str(e)}")
-                return VideoAnalysisSummary(description="", key_moments=[])
 
         except Exception as e:
             print(f"Error in generate_summary: {str(e)}")
-            return VideoAnalysisSummary(description="", key_moments=[])
 
     def generate_screenplay(self, summary, complete_transcript) -> dict:
         """
@@ -147,7 +148,7 @@ class LlmAgentService:
             }]
 
             try:
-                screenplay_data = self._generate_json_response(content)
+                screenplay_data = self._get_response_from_agent(content)
                 return screenplay_data
 
             except Exception as e:
@@ -273,3 +274,50 @@ class LlmAgentService:
                 audio_style="Error: Could not analyze audio style",
                 creator_instructions="Error: Could not generate instructions"
             )
+
+    def generate_visual_features(self, keyframes: List[KeyframeContext]):
+        try:
+            prompt = load_prompt('visual_feature_extractor')
+
+            content = [{
+                "type": "text",
+                "text": prompt
+            }]
+
+            # Add each moment as input
+            for i, kf in enumerate(keyframes, 1):
+                content.append({
+                    "type": "text",
+                    "text": f"""
+        === Moment {kf.frame_number} ===
+        """
+                })
+                content.append(frame_to_base64(kf.image))
+
+            response = self._get_response_from_agent(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
+
+            return response
+
+        except Exception as e:
+            print(f"Error in generate_visual_features: {str(e)}")
+            raise
+
+    def suggest_edits(self, comparison_request: dict):
+
+        try:
+            prompt = load_prompt('edit_recommendations')
+
+            content = [{
+                "type": "text",
+                "text": prompt
+            }, {
+                "type": "text",
+                "text": json.dumps(comparison_request)
+            }]
+            response = self._get_response_from_agent(content, json_response=False, model=Config.MODEL.CLAUDE_3_SONNET.value)
+
+            return response
+
+        except Exception as e:
+            print(f"Error in suggest_edits: {str(e)}")
+            raise

@@ -6,14 +6,18 @@ import time
 
 from pandas.core.frame import DataFrame
 
+from app.models.video import KeyframeContext
 from app.models.video import ShootingStyle
 from app.services.audio_service import AudioService
 from app.services.llm_agent_service import LlmAgentService
 from app.services.s3_service import S3Service
 from app.services.scraper_service import ScraperService
+from app.services.recommendation_service import RecommendationService
 from app.utils.audio import extract_audio
 from app.utils.transcript import get_audio_hook
 from app.utils.video import extract_hook_frame
+from app.utils.dataframe import calculate_impact_scores
+from app.utils.video import extract_hook_frame, extract_keyframes, get_video_duration_cv2
 
 
 class IngestionService:
@@ -22,9 +26,35 @@ class IngestionService:
         self.scraper = ScraperService()
         self.audio = AudioService()
         self.llm = LlmAgentService()
+        self.video = RecommendationService()
         self.video_bucket = "tapestry-tiktok-videos"
 
-    def download_vids(self, df: DataFrame) -> DataFrame:
+    def process(self, posts: DataFrame) -> DataFrame:
+        # Download videos from TikTok
+        video_linked_posts = self.download_videos(posts)
+
+        # Calculate impact scores
+        scored_posts = calculate_impact_scores(video_linked_posts)
+
+        # Transcribe audio from videos
+        transcribed_posts = self.transcribe(scored_posts)
+
+        # Add visual hooks
+        hooked_posts = self.add_hook(transcribed_posts)
+
+        # Extract visual features
+        # posts_with_visual_features = self.extract_visual_features(posts)
+
+        # Extract voice script and on-screen elements
+
+        # Extract voice features
+
+        # Extract background music features
+
+        # Extract 3rd party footage features
+        return hooked_posts
+
+    def download_videos(self, df: DataFrame) -> DataFrame:
         self.scraper.open_browser()
 
         for index, row in df.iterrows():
@@ -119,3 +149,40 @@ class IngestionService:
         row["style"] = json.dumps(shooting_style.__dict__)
 
         return row
+
+    def _extract_visual_features(self, row):
+        url = row['url']
+
+        print(f"Extracting visual features for: {url}")
+
+        video_duration = get_video_duration_cv2(url)
+
+        keyframes = extract_keyframes(url, min(video_duration, 5.0))
+
+        keyframe_contexts = []
+
+        for i, (frame_num, timestamp, frame) in enumerate(keyframes):
+            print(f"Processing keyframe {i + 1}/{len(keyframes)}")
+            start_time = 0 if i == 0 else keyframes[i - 1][1]
+
+            context = KeyframeContext(
+                frame_number=i + 1,
+                timestamp=timestamp,
+                image=frame,
+                audio_transcript=None,
+                window_start=start_time,
+                window_end=timestamp
+            )
+            keyframe_contexts.append(context)
+
+        # call summary generator
+        print("Calling AGENT to generate visual features...")
+        visual_features = self.llm.generate_visual_features(keyframe_contexts)
+
+        row["visual"] = visual_features
+
+        return row
+
+    def extract_visual_features(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._extract_visual_features, axis=1)
+        return df
