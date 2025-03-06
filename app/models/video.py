@@ -97,11 +97,11 @@ class VideoRequest(BaseModel):
 
 
 @dataclass
-class KeyframeAudioContext:
+class KeyframeContext:
     frame_number: int
     timestamp: float
     image: np.ndarray
-    audio_transcript: str
+    audio_transcript: Optional[str]
     window_start: float
     window_end: float
 
@@ -118,3 +118,38 @@ class ShootingStyle:
 class VideoAnalysisSummary:
     description: str
     key_moments: List[dict]
+
+
+class Feature(BaseModel):
+    description: str
+    score: int
+
+
+class Subject(BaseModel):
+    appearance: Feature
+    contrast_with_background: Feature
+    camera_proximity: Feature
+    expressiveness: Feature
+
+
+class Background(BaseModel):
+    appeal: Feature
+    distracting_elements: Feature
+    lighting_quality: Feature
+
+
+class TextOverlay(BaseModel):
+    presence: Feature
+    main_text: Feature
+
+
+class VisualFeatures(BaseModel):
+    subject: Subject
+    background: Background
+    text_overlay: TextOverlay
+
+
+class Video(BaseModel):
+    # url: str
+    # post_id: int
+    visual: VisualFeatures
