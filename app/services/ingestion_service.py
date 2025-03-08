@@ -5,26 +5,20 @@ import time
 
 from pandas.core.frame import DataFrame
 
-from app.models.video import KeyframeContext
-from app.services.audio_service import AudioService
-from app.services.llm_agent_service import LlmAgentService
-from app.services.recommendation_service import RecommendationService
-from app.services.s3_service import S3Service
-from app.services.scraper_service import ScraperService
+from app.services.feature_extraction_service import FeatureExtractionService
+from app.services.client.s3_service import S3Service
+from app.services.client.scraper_service import ScraperService
 from app.utils.audio import extract_audio
 from app.utils.dataframe import calculate_impact_scores
-from app.utils.transcript import get_audio_hook
-from app.utils.video import extract_hook_frame, extract_keyframes, get_video_duration_cv2
+from app.config.settings import Config
 
 
 class IngestionService:
     def __init__(self):
+        self.feature_extraction_service = FeatureExtractionService()
         self.s3 = S3Service()
         self.scraper = ScraperService()
-        self.audio = AudioService()
-        self.llm = LlmAgentService()
-        self.video = RecommendationService()
-        self.video_bucket = "tapestry-tiktok-videos"
+        self.video_bucket = Config.AWS_S3_BUCKET
 
     def process(self, posts: DataFrame) -> DataFrame:
         # Download videos from TikTok
@@ -43,7 +37,7 @@ class IngestionService:
         posts_with_visual_features = self.extract_visual_features(posts_with_hook)
 
         # Extract keyframe features
-        posts_with_keyframes_features = self.extract_keyframe_features(posts_with_visual_features)
+        posts_with_style_features = self.extract_style_features(posts_with_visual_features)
 
         # Extract voice script and on-screen elements
 
@@ -52,7 +46,7 @@ class IngestionService:
         # Extract background music features
 
         # Extract 3rd party footage features
-        return posts_with_keyframes_features
+        return posts_with_style_features
 
     def download_videos(self, df: DataFrame) -> DataFrame:
         self.scraper.open_browser()
@@ -77,8 +71,8 @@ class IngestionService:
     def extract_visual_features(self, df: DataFrame) -> DataFrame:
         return df.apply(self._extract_visual_features, axis=1)
 
-    def extract_keyframe_features(self, df: DataFrame) -> DataFrame:
-        return df.apply(self._extract_keyframe_features, axis=1)
+    def extract_style_features(self, df: DataFrame) -> DataFrame:
+        return df.apply(self._extract_style_features, axis=1)
 
     """
         Helper functions
@@ -115,7 +109,7 @@ class IngestionService:
             return None
 
         print("Transcribing audio...")
-        transcription = self.audio.transcribe(audio_file_path)
+        transcription = self.feature_extraction_service.transcribe(audio_file_path)
 
         # cleanup
         os.remove(video_file_path)
@@ -137,18 +131,13 @@ class IngestionService:
             row["style"] = None
             return row
 
-        frame = extract_hook_frame(video_file_path, frame_time=1)
-        print("Calling AGENT to generate screen hook...")
-        screen_hook = self.llm.generate_screen_hook(frame)
-        audio_hook = get_audio_hook(full_script)
-        print("Calling AGENT to analyze hook...")
-        shooting_style = self.llm.generate_hook_analysis(frame, full_script)
+        visual_hook = self.feature_extraction_service.get_visual_hook(video_file_path, full_script)
 
         os.remove(video_file_path)
 
-        row["screen_hook"] = screen_hook
-        row["audio_hook"] = audio_hook
-        row["style"] = shooting_style.__dict__
+        row["screen_hook"] = visual_hook["screen_hook"]
+        row["audio_hook"] = visual_hook["audio_hook"]
+        row["style"] = visual_hook["shooting_style"].__dict__
 
         return row
 
@@ -163,24 +152,7 @@ class IngestionService:
             row["visual"] = None
             return row
 
-        video_duration = get_video_duration_cv2(video_file_path)
-        keyframes = extract_keyframes(video_file_path, min(video_duration, 5.0))
-
-        keyframe_contexts = [
-            KeyframeContext(
-                frame_number=i + 1,
-                timestamp=timestamp,
-                image=frame,
-                audio_transcript=None,
-                window_start=0 if i == 0 else keyframes[i - 1][1],
-                window_end=timestamp
-            )
-            for i, (frame_num, timestamp, frame) in enumerate(keyframes)
-        ]
-
-        # call summary generator
-        print("Calling AGENT to generate visual features...")
-        visual_features = self.llm.generate_visual_features(keyframe_contexts)
+        visual_features = self.feature_extraction_service.get_visual_features(video_file_path)
 
         # cleanup
         os.remove(video_file_path)
@@ -188,7 +160,7 @@ class IngestionService:
         row["visual"] = visual_features
         return row
 
-    def _extract_keyframe_features(self, row):
+    def _extract_style_features(self, row):
         s3_url = row["video_link"]
 
         video_filename = os.path.basename(s3_url)
@@ -200,23 +172,9 @@ class IngestionService:
             row["product_visible"] = None
             return row
 
-        keyframes = extract_keyframes(video_file_path)
-        print(f"Extracted {len(keyframes)} keyframes")
+        style_features = self.feature_extraction_service.get_style_features(video_file_path)
 
-        analysis = self.llm.generate_keyframe_analysis(keyframes)
-
-        creator_visible = analysis.get("creator_visible", None)
-        product_visible = analysis.get("product_visible", None)
-
-        os.remove(video_file_path)
-
-        print("-" * 80)
-        print(f"Keyframe Analysis:")
-        print(f"\tCreator Visibility: {creator_visible}")
-        print(f"\tProduct Visibility: {product_visible}")
-        print("-" * 80)
-
-        row["creator_visible"] = creator_visible
-        row["product_visible"] = product_visible
+        row["creator_visible"] = style_features["creator_visible"]
+        row["product_visible"] = style_features["product_visible"]
 
         return row

@@ -2,12 +2,12 @@ import json
 from pathlib import Path
 
 
-def load_prompt(prompt_name: str, provider: str = 'claude') -> str:
+def load_prompt(prompt_name: str, provider: str = 'feature_extraction') -> str:
     """
     Load prompt from a text file.
 
     Args:
-        provider: Name of the LLM provider
+        provider: Name of the prompt provider
         prompt_name: Name of the prompt file without .txt extension
 
     Returns:
