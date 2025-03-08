@@ -1,5 +1,6 @@
 import json
-from typing import Dict, List, Optional
+import time
+from typing import List, Optional, Dict
 
 import numpy as np
 import requests
@@ -11,116 +12,93 @@ from app.utils.prompt import load_prompt, extract_json
 from app.utils.video import frame_to_base64
 
 
-# TODO: Interface class with actual classes for Chat GPT, Claude AI, Perplexity
 class LlmAgentService:
+    def __init__(self):
+        self.base_model = Config.MODEL.CLAUDE_3_HAIKU.value
 
-    def _format_hook_details(self, analysis_text: str) -> Dict:
-        creator_instructions = ""
+    def _generate_response(self, content, model=None):
+        model = self.base_model if not model else model
+        while True:
+            try:
+                response = requests.post(
+                    Config.LLM_API_URL,
+                    headers={
+                        "x-api-key": Config.LLM_API_KEY,
+                        "anthropic-version": Config.LLM_API_VERSION,
+                        "content-type": "application/json"
+                    },
+                    json={
+                        "model": model,
+                        "max_tokens": Config.MAX_TOKENS,
+                        "messages": [{
+                            "role": "user",
+                            "content": content
+                        }]
+                    }
+                )
 
-        if "VISUAL_STYLE:" in analysis_text and "AUDIO_STYLE:" in analysis_text:
-            parts = analysis_text.split("AUDIO_STYLE:")
-            visual_part = parts[0].split("VISUAL_STYLE:")[1].strip()
-            visual_style = visual_part
+                if response.status_code != 200:
+                    res = response.json()
+                    if res['type'] == "error" and res['error']['type'] == "rate_limit_error":
+                        time.sleep(60)
+                        continue
 
-            if "CREATOR_INSTRUCTIONS:" in parts[1]:
-                remaining = parts[1].split("CREATOR_INSTRUCTIONS:")
-                audio_style = remaining[0].strip()
-                creator_instructions = remaining[1].strip()
-            else:
-                audio_style = parts[1].strip()
-        else:
-            # Fallback if the format is different
-            visual_style = "Could not parse visual style from analysis."
-            audio_style = "Could not parse audio style from analysis."
-            creator_instructions = analysis_text  # Just use the full text as instructions
+                    raise Exception(res)
 
-        return {
-            "visual_style": visual_style,
-            "audio_style": audio_style,
-            "creator_instructions": creator_instructions
-        }
+                return response.json()["content"][0]["text"]
+            except Exception as e:
+                raise e
 
-    def _generate_response(self, content, model=Config.MODEL.CLAUDE_3_HAIKU.value):
-        try:
-            response = requests.post(
-                Config.LLM_API_URL,
-                headers={
-                    "x-api-key": Config.LLM_API_KEY,
-                    "anthropic-version": Config.LLM_API_VERSION,
-                    "content-type": "application/json"
-                },
-                json={
-                    "model": model,
-                    "max_tokens": Config.MAX_TOKENS,
-                    "messages": [{
-                        "role": "user",
-                        "content": content
-                    }]
-                }
-            )
-
-            if response.status_code != 200:
-                raise Exception(f"API call failed: {response.text}")
-
-            return response.json()["content"][0]["text"]
-        except Exception as e:
-            raise e
-
-    def _get_response_from_agent(self, content, json_response=True, model=Config.MODEL.CLAUDE_3_HAIKU.value):
+    def _generate_json_response(self, content, model=None):
         while True:
             try:
                 raw_response = self._generate_response(content, model)
-                if json_response:
-                    return extract_json(raw_response)
-                return raw_response
+                return extract_json(raw_response)
             except json.JSONDecodeError:
-                print(f"Retrying response generation")
+                print(f"Retrying JSON response generation...")
             except Exception as e:
                 raise e
 
     def generate_summary(self, keyframes: List[KeyframeContext], caption: str):
         """Send keyframes and audio to Claude for analysis."""
+
+        def create_moment_header(keyframe) -> dict:
+            """Create the header text for a moment."""
+            return {
+                "type": "text",
+                "text": f"=== Moment {keyframe.frame_number} ===\n"
+                        f"Timestamp: {keyframe.timestamp:.2f} seconds\n"
+            }
+
+        def create_audio_transcript(keyframe) -> dict:
+            """Create the audio transcript text for a moment."""
+            return {
+                "type": "text",
+                "text": f"Audio from {keyframe.window_start:.2f}s to {keyframe.window_end:.2f}s:\n"
+                        f"{keyframe.audio_transcript}\n"
+                        f"-------------------"
+            }
+
         try:
             # Load and format the prompt
             prompt_template = load_prompt('summary_generator')
             post_caption = caption if caption is not None else ""
             prompt = prompt_template.replace("{caption}", post_caption)
 
-            content = [{
-                "type": "text",
-                "text": prompt
-            }]
+            content = [{"type": "text", "text": prompt}]
+            for kf in keyframes:
+                content.extend([
+                    create_moment_header(kf),
+                    frame_to_base64(kf.image),
+                    create_audio_transcript(kf)
+                ])
 
-            # Add each moment as input
-            for i, kf in enumerate(keyframes, 1):
-                content.append({
-                    "type": "text",
-                    "text": f"""
-    === Moment {kf.frame_number} ===
-    Timestamp: {kf.timestamp:.2f} seconds
-    """
-                })
-                content.append(frame_to_base64(kf.image))
-                content.append({
-                    "type": "text",
-                    "text": f"""
-    Audio from {kf.window_start:.2f}s to {kf.window_end:.2f}s:
-    {kf.audio_transcript}
-    -------------------"""
-                })
-
-            try:
-                analysis_data = self._get_response_from_agent(content)
-
-                summary = analysis_data["summary"]
-
-                return summary
-
-            except Exception as e:
-                print(f"Error during API call: {str(e)}")
-
+            analysis_data = self._generate_json_response(content)
+            summary = analysis_data["summary"]
+            return summary
         except Exception as e:
             print(f"Error in generate_summary: {str(e)}")
+            return {}
 
     def generate_screenplay(self, summary, complete_transcript) -> dict:
         """
@@ -129,28 +107,17 @@ class LlmAgentService:
         try:
             prompt_template = load_prompt('screenplay_generator')
 
-            content = [{
-                "type": "text",
-                "text": prompt_template
-            }, {
-                "type": "text",
-                "text": f"""
-    === Video Analysis ===
-    {json.dumps(summary, indent=2)}
+            content = [
+                {"type": "text", "text": prompt_template},
+                {"type": "text",
+                 "text": f"=== Video Analysis ===\n"
+                         f"{json.dumps(summary, indent=2)}\n\n"
+                         f"=== Complete Transcript ===\n"
+                         f"{complete_transcript}"}
+            ]
 
-    === Complete Transcript ===
-    {complete_transcript}
-    """
-            }]
-
-            try:
-                screenplay_data = self._get_response_from_agent(content)
-                return screenplay_data
-
-            except Exception as e:
-                print(f"Error during API call: {str(e)}")
-                return {}
-
+            screenplay_data = self._generate_json_response(content)
+            return screenplay_data
         except Exception as e:
             print(f"Error in generate_screenplay: {str(e)}")
             return {}
@@ -209,12 +176,9 @@ class LlmAgentService:
 
         try:
             response = self._generate_response(content)
-
-            # Make sure it's not too long
             words = response.split()
             if len(words) > 15:
                 response = ' '.join(words[:15])
-
             return response
         except Exception as e:
             print(f"API error in visual style generation: {e}")
@@ -231,6 +195,33 @@ class LlmAgentService:
         Returns:
             ShootingStyle: Detailed style information with actionable instructions
         """
+
+        def format_hook_details(analysis_text: str) -> Dict:
+            creator_instructions = ""
+
+            if "VISUAL_STYLE:" in analysis_text and "AUDIO_STYLE:" in analysis_text:
+                parts = analysis_text.split("AUDIO_STYLE:")
+                visual_part = parts[0].split("VISUAL_STYLE:")[1].strip()
+                visual_style = visual_part
+
+                if "CREATOR_INSTRUCTIONS:" in parts[1]:
+                    remaining = parts[1].split("CREATOR_INSTRUCTIONS:")
+                    audio_style = remaining[0].strip()
+                    creator_instructions = remaining[1].strip()
+                else:
+                    audio_style = parts[1].strip()
+            else:
+                # Fallback if the format is different
+                visual_style = "Could not parse visual style from analysis."
+                audio_style = "Could not parse audio style from analysis."
+                creator_instructions = analysis_text  # Just use the full text as instructions
+
+            return {
+                "visual_style": visual_style,
+                "audio_style": audio_style,
+                "creator_instructions": creator_instructions
+            }
+
         if frame is None:
             return ShootingStyle(
                 visual_style_summary="Error: Could not extract frame from video.",
@@ -255,7 +246,7 @@ class LlmAgentService:
 
         try:
             response = self._generate_response(content)
-            formatted_response = self._format_hook_details(response)
+            formatted_response = format_hook_details(response)
             return ShootingStyle(
                 visual_style_summary=visual_style_summary,
                 visual_style=formatted_response['visual_style'],
@@ -284,7 +275,7 @@ class LlmAgentService:
                     frame_to_base64(kf.image)
                 ])
 
-            response = self._get_response_from_agent(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
+            response = self._generate_json_response(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
             return response
 
         except Exception as e:
@@ -303,11 +294,59 @@ class LlmAgentService:
                 "type": "text",
                 "text": json.dumps(comparison_request)
             }]
-            response = self._get_response_from_agent(content, json_response=False,
-                                                     model=Config.MODEL.CLAUDE_3_SONNET.value)
 
+            response = self._generate_response(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
             return response
-
         except Exception as e:
             print(f"Error in suggest_edits: {str(e)}")
             return None
+
+    def generate_keyframe_analysis(self, keyframes: List[tuple]) -> dict:
+        """
+        Analyze keyframes to describe video properties
+
+        Args:
+            keyframes (List[tuple]): List of the critical frames from the video (frame_number, frame_time, frame)
+
+        Returns:
+            dict: Properties identified by analyzing video keyframes
+        """
+        if keyframes is None:
+            return {
+                "creator_visible": None,
+                "product_visible": None
+            }
+
+        prompt = load_prompt('keyframe_analysis_generator')
+
+        image_contents = [frame_to_base64(keyframe[2]) for keyframe in keyframes]
+
+        chunks = [image_contents[x:x + 5] for x in range(0, len(image_contents), 5)]
+
+        face_visible = hand_visible = product_visible = False
+
+        for chunk in chunks:
+            content = [{
+                "type": "text",
+                "text": prompt
+            }]
+            content.extend(chunk)
+
+            try:
+                response = self._generate_json_response(content, model=Config.MODEL.CLAUDE_3_5_HAIKU.value)
+                face_visible = face_visible or response['face_visible']
+                hand_visible = hand_visible or response['hand_visible']
+                product_visible = product_visible or response['product_visible']
+                if face_visible and product_visible:
+                    break
+            except Exception as e:
+                print(f"API error in keyframe analysis: {e}")
+                return {
+                    "creator_visible": None,
+                    "product_visible": None
+                }
+
+        return {
+            'creator_visible': "Face is visible" if face_visible else ("Only hands" if hand_visible else "No"),
+            'product_visible': product_visible
+        }

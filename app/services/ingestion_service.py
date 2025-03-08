@@ -36,11 +36,14 @@ class IngestionService:
         # Transcribe audio from videos
         transcribed_posts = self.transcribe(scored_posts)
 
-        # Extract hook
+        # Extract hook features
         posts_with_hook = self.add_hook(transcribed_posts)
 
         # Extract visual features
         posts_with_visual_features = self.extract_visual_features(posts_with_hook)
+
+        # Extract keyframe features
+        posts_with_keyframes_features = self.extract_keyframe_features(posts_with_visual_features)
 
         # Extract voice script and on-screen elements
 
@@ -49,7 +52,7 @@ class IngestionService:
         # Extract background music features
 
         # Extract 3rd party footage features
-        return posts_with_visual_features
+        return posts_with_keyframes_features
 
     def download_videos(self, df: DataFrame) -> DataFrame:
         self.scraper.open_browser()
@@ -72,8 +75,10 @@ class IngestionService:
         return df
 
     def extract_visual_features(self, df: DataFrame) -> DataFrame:
-        df = df.apply(self._extract_visual_features, axis=1)
-        return df
+        return df.apply(self._extract_visual_features, axis=1)
+
+    def extract_keyframe_features(self, df: DataFrame) -> DataFrame:
+        return df.apply(self._extract_keyframe_features, axis=1)
 
     """
         Helper functions
@@ -181,4 +186,37 @@ class IngestionService:
         os.remove(video_file_path)
 
         row["visual"] = visual_features
+        return row
+
+    def _extract_keyframe_features(self, row):
+        s3_url = row["video_link"]
+
+        video_filename = os.path.basename(s3_url)
+        video_dir = tempfile.gettempdir()
+        video_file_path = f"{video_dir}/{video_filename}"
+
+        if not self.s3.download_from_s3(s3_url, video_file_path):
+            row["creator_visible"] = None
+            row["product_visible"] = None
+            return row
+
+        keyframes = extract_keyframes(video_file_path)
+        print(f"Extracted {len(keyframes)} keyframes")
+
+        analysis = self.llm.generate_keyframe_analysis(keyframes)
+
+        creator_visible = analysis.get("creator_visible", None)
+        product_visible = analysis.get("product_visible", None)
+
+        os.remove(video_file_path)
+
+        print("-" * 80)
+        print(f"Keyframe Analysis:")
+        print(f"\tCreator Visibility: {creator_visible}")
+        print(f"\tProduct Visibility: {product_visible}")
+        print("-" * 80)
+
+        row["creator_visible"] = creator_visible
+        row["product_visible"] = product_visible
+
         return row

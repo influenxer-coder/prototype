@@ -79,7 +79,7 @@ def extract_hook_frame(video_path: str, frame_time: int = 1) -> Optional[np.ndar
     return frame
 
 
-def extract_keyframes(video_path: str, max_duration_seconds: Optional[float] = 5.0) -> List[tuple]:
+def extract_keyframes(video_path: str, max_duration_seconds: Optional[float] = None) -> List[tuple]:
     """
     Extract keyframes from a video based on scene changes, up to a specified duration.
 
