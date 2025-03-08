@@ -1,12 +1,12 @@
 import json
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import numpy as np
 import requests
 
 from app.config.settings import Config
-from app.models.video import ShootingStyle, VideoAnalysisSummary
-from app.models.video import KeyframeContext, Video
+from app.models.video import KeyframeContext
+from app.models.video import ShootingStyle
 from app.utils.prompt import load_prompt, extract_json
 from app.utils.video import frame_to_base64
 
@@ -78,11 +78,7 @@ class LlmAgentService:
             except Exception as e:
                 raise e
 
-    def generate_summary(
-            self,
-            keyframes: List[KeyframeContext],
-            caption: str
-    ):
+    def generate_summary(self, keyframes: List[KeyframeContext], caption: str):
         """Send keyframes and audio to Claude for analysis."""
         try:
             # Load and format the prompt
@@ -279,30 +275,23 @@ class LlmAgentService:
         try:
             prompt = load_prompt('visual_feature_extractor')
 
-            content = [{
-                "type": "text",
-                "text": prompt
-            }]
+            content = [{"type": "text", "text": prompt}]
 
             # Add each moment as input
-            for i, kf in enumerate(keyframes, 1):
-                content.append({
-                    "type": "text",
-                    "text": f"""
-        === Moment {kf.frame_number} ===
-        """
-                })
-                content.append(frame_to_base64(kf.image))
+            for kf in keyframes:
+                content.extend([
+                    {"type": "text", "text": f"\n=== Moment {kf.frame_number} ===\n"},
+                    frame_to_base64(kf.image)
+                ])
 
             response = self._get_response_from_agent(content, model=Config.MODEL.CLAUDE_3_SONNET.value)
-
             return response
 
         except Exception as e:
             print(f"Error in generate_visual_features: {str(e)}")
-            raise
+            return None
 
-    def suggest_edits(self, comparison_request: dict):
+    def suggest_edits(self, comparison_request: dict) -> Optional[str]:
 
         try:
             prompt = load_prompt('edit_recommendations')
@@ -314,10 +303,11 @@ class LlmAgentService:
                 "type": "text",
                 "text": json.dumps(comparison_request)
             }]
-            response = self._get_response_from_agent(content, json_response=False, model=Config.MODEL.CLAUDE_3_SONNET.value)
+            response = self._get_response_from_agent(content, json_response=False,
+                                                     model=Config.MODEL.CLAUDE_3_SONNET.value)
 
             return response
 
         except Exception as e:
             print(f"Error in suggest_edits: {str(e)}")
-            raise
+            return None

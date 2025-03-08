@@ -1,6 +1,6 @@
 import base64
 import io
-from typing import List
+from typing import List, Optional
 
 import cv2
 import numpy as np
@@ -45,7 +45,7 @@ def get_video_duration_cv2(video_path: str) -> float:
     return duration
 
 
-def extract_hook_frame(video_path: str, frame_time: int = 1) -> np.ndarray | None:
+def extract_hook_frame(video_path: str, frame_time: int = 1) -> Optional[np.ndarray]:
     """
     Extract a specific frame from a video file
 
@@ -79,65 +79,74 @@ def extract_hook_frame(video_path: str, frame_time: int = 1) -> np.ndarray | Non
     return frame
 
 
-def extract_keyframes(video_path: str, max_duration_seconds: float = 5.0) -> List[tuple]:
+def extract_keyframes(video_path: str, max_duration_seconds: Optional[float] = 5.0) -> List[tuple]:
     """
-    Extract keyframes from video based on scene changes up to a specified duration.
+    Extract keyframes from a video based on scene changes, up to a specified duration.
 
     Args:
-        video_path: Path to the video file
-        max_duration_seconds: Maximum duration in seconds to extract keyframes from (None for entire video)
+        video_path: Path to the video file.
+        max_duration_seconds: Maximum duration in seconds to extract keyframes from (None for the entire video).
 
     Returns:
-        List of tuples containing (frame_number, timestamp, frame)
+        List of tuples containing (frame_number, timestamp, frame).
     """
+    # Open the video file
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
         raise ValueError(f"Could not open video file: {video_path}")
 
+    # Get video properties
     fps = cap.get(cv2.CAP_PROP_FPS)
     min_frame_interval = int(fps * Config.MIN_INTERVAL_SECONDS)
+    max_frame = int(max_duration_seconds * fps) if max_duration_seconds else None
 
+    # Initialize variables
     keyframes = []
     prev_frame = None
-    frames_since_last_keyframe = 0
+    frames_extracted = set()
     frame_number = 0
-    frames_extracted = {}
-
-    # Calculate the maximum frame number based on duration if specified
-    max_frame = None
-    if max_duration_seconds is not None:
-        max_frame = int(max_duration_seconds * fps)
+    frames_since_last_keyframe = 0
 
     while True:
         ret, frame = cap.read()
-        if not ret:
-            break
+        if not ret or (max_frame and frame_number >= max_frame):
+            break  # Stop if video ends or max duration is reached
 
-        # Check if we have reached the maximum duration
-        if max_frame is not None and frame_number >= max_frame:
-            break
-
-        if prev_frame is None:
+        # Check if it's the first frame or a significant scene change
+        if prev_frame is None or (
+                frames_since_last_keyframe >= min_frame_interval
+                and _is_scene_change(frame, prev_frame)
+        ):
             keyframes.append((frame_number, frame_number / fps, frame.copy()))
-            frames_since_last_keyframe = 0
-            frames_extracted[frame_number] = True
-        elif frames_since_last_keyframe >= min_frame_interval:
-            curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
-            frame_diff = cv2.absdiff(curr_gray, prev_gray)
-            mean_diff = np.mean(frame_diff)
+            frames_extracted.add(frame_number)
+            frames_since_last_keyframe = 0  # Reset counter
 
-            if mean_diff > Config.MIN_SCENE_CHANGE_THRESHOLD:
-                keyframes.append((frame_number, frame_number / fps, frame.copy()))
-                frames_since_last_keyframe = 0
-                frames_extracted[frame_number] = True
-
+        # Update tracking variables
         prev_frame = frame.copy()
         frame_number += 1
         frames_since_last_keyframe += 1
 
-    if frame_number not in frames_extracted and prev_frame is not None:
+    # Ensure the last frame is included if it wasn't already
+    if prev_frame is not None and frame_number not in frames_extracted:
         keyframes.append((frame_number, frame_number / fps, prev_frame.copy()))
 
     cap.release()
     return keyframes
+
+
+def _is_scene_change(frame, prev_frame, threshold=Config.MIN_SCENE_CHANGE_THRESHOLD) -> bool:
+    """
+    Helper function to detect scene changes between two frames.
+
+    Args:
+        frame: Current frame.
+        prev_frame: Previous frame.
+        threshold: Minimum mean difference to consider a scene change.
+
+    Returns:
+        True if a scene change is detected, False otherwise.
+    """
+    curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    prev_gray = cv2.cvtColor(prev_frame, cv2.COLOR_BGR2GRAY)
+    frame_diff = cv2.absdiff(curr_gray, prev_gray)
+    return np.mean(frame_diff) > threshold
