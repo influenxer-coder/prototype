@@ -49,4 +49,14 @@ class Config:
     }
 
     # Mini batch size for processing videos
-    CHUNK_SIZE = 10
+    BATCH_SIZE = 10
+
+    # Dataframe constants
+    LOCAL_VIDEO_PATH = "local_video_path"
+    LOCAL_AUDIO_PATH = "local_audio_path"
+    S3_VIDEO_URL = "s3_video_url"
+    TRANSCRIPT = "transcript"
+    STYLE = "style"
+    HOOK = "hook"
+    VISUAL = "visual"
+    AUDIO = "audio"

@@ -232,6 +232,12 @@ class LlmAgentService:
 
         visual_style_summary = self.generate_visual_style(frame)
 
+        """
+        We should remove the below code. 
+        We are asking LLM to generate something without providing much context.
+        [hook_analysis_generator] prompt
+        """
+
         transcript = transcript if transcript else ''
         transcript = transcript if len(transcript) <= 500 else transcript[:500] + '...'
 

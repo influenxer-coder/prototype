@@ -14,7 +14,7 @@ Identify the following information from the visual frames. For each video, analy
     d. expressiveness: How expressive is the subject in terms of energy level and facial expression? Explain why you think so. Also, rate this on a scale of 1-10.
 
 2. Background:
-    a. appeal: What does the background look like and is it appealing/interesting or dull? Does it complement the subject and why you think so? Also, rate this on a scale of 1-10.
+    a. appeal: What is present in the background and is it appealing/interesting or dull? Does it complement the subject and why you think so? Also, rate this on a scale of 1-10.
     b. lighting_quality: What is the lighting quality (any shadows, overexposure, etc.) like and does it enhance or detract from the subject? Explain your reasoning. Also, rate this on a scale of 1-10.
     c. distracting_elements: Are there any distracting elements (clutter, movement, etc.) in the background which may divert attention from the subject? Also, rate this on a scale of 1-10 (where 10 means no distracting elements).
 

@@ -4,8 +4,8 @@ from typing import Optional, List
 import cv2
 
 from app.models.video import KeyframeContext
-from app.services.audio.audio_service import AudioService
-from app.services.visual.visual_service import VideoService
+from app.services.audio.audio_processor_service import AudioProcessorService
+from app.services.visual.video_processor_service import VideoProcessorService
 from app.services.client.llm_agent_service import LlmAgentService
 from app.utils.transcript import get_audio_hook
 
@@ -13,12 +13,12 @@ from app.utils.transcript import get_audio_hook
 class FeatureExtractionService:
     def __init__(self):
         self.llm = LlmAgentService()
-        self.audio_service = AudioService()
-        self.visual_servie = VideoService()
+        self.audio_processor = AudioProcessorService()
+        self.video_processor = VideoProcessorService()
 
     def get_video_duration(self, video_path: str) -> float:
         """
-        Get video duration using OpenCV.
+        Get visual duration using OpenCV.
         Returns duration in seconds.
         """
         cap = cv2.VideoCapture(video_path)
@@ -34,7 +34,7 @@ class FeatureExtractionService:
         return duration
 
     def get_keyframes(self, video_path: str, max_duration_seconds: Optional[float] = None) -> List[tuple]:
-        return self.visual_servie.extract_keyframes(video_path, max_duration_seconds)
+        return self.video_processor.extract_keyframes(video_path, max_duration_seconds)
 
     def get_visual_features(self, video_path: str):
         video_duration = self.get_video_duration(video_path)
@@ -66,26 +66,29 @@ class FeatureExtractionService:
         creator_visible = analysis.get("creator_visible", None)
         product_visible = analysis.get("product_visible", None)
 
-        os.remove(video_path)
-
-        print("-" * 80)
-        print(f"Keyframe Analysis:")
-        print(f"\tCreator Visibility: {creator_visible}")
-        print(f"\tProduct Visibility: {product_visible}")
-        print("-" * 80)
-
         return {
             "creator_visible": creator_visible,
             "product_visible": product_visible
         }
 
     def transcribe(self, audio_path: str, start_time: float | None = None, end_time: float | None = None) -> str:
-        return self.audio_service.transcribe(audio_path, start_time, end_time)
+        return self.audio_processor.transcribe(audio_path, start_time, end_time)
 
-    def get_visual_hook(self, video_file_path: str, full_script: str):
-        frame = self.visual_servie.extract_hook_frame(video_file_path, frame_time=1)
+    def get_audio_visual_hook(self, video_file_path: str, full_script: Optional[str] = None):
+        """
+        :param video_file_path:
+        :param full_script:
+        :return:
+            on screen hook,
+            audio hook,
+            shooting style
+        """
+        frame = self.video_processor.extract_hook_frame(video_file_path, frame_time=1)
         print("Calling AGENT to generate screen hook...")
         screen_hook = self.llm.generate_screen_hook(frame)
+
+        if not full_script:
+            full_script = self.transcribe(video_file_path)
 
         audio_hook = get_audio_hook(full_script)
         print("Calling AGENT to analyze hook...")
@@ -96,4 +99,7 @@ class FeatureExtractionService:
             "audio_hook": audio_hook,
             "shooting_style": shooting_style
         }
+
+    def get_audio_features(self, video_path: str):
+        return self.audio_processor.extract_audio_features(video_path)
 

@@ -3,6 +3,7 @@ import random
 import tempfile
 import time
 
+import pandas as pd
 from pandas.core.frame import DataFrame
 
 from app.services.feature_extraction_service import FeatureExtractionService
@@ -21,32 +22,29 @@ class IngestionService:
         self.video_bucket = Config.AWS_S3_BUCKET
 
     def process(self, posts: DataFrame) -> DataFrame:
-        # Download videos from TikTok
-        video_linked_posts = self.download_videos(posts)
+        processed_batches = []
 
-        # Calculate impact scores
-        scored_posts = calculate_impact_scores(video_linked_posts)
+        batch_size = Config.BATCH_SIZE
 
-        # Transcribe audio from videos
-        transcribed_posts = self.transcribe(scored_posts)
+        for start in range(0, len(posts), batch_size):
+            end = start + batch_size
+            batch = posts.iloc[start:end]
 
-        # Extract hook features
-        posts_with_hook = self.add_hook(transcribed_posts)
+            processed_batch = (
+                self.download_videos(batch)
+                .pipe(calculate_impact_scores)
+                .pipe(self.transcribe)
+                .pipe(self.extract_style_features)
+                .pipe(self.add_hook)
+                .pipe(self.extract_visual_features)
+                .pipe(self.extract_audio_features)
+                .pipe(self.cleanup)
+                .drop(columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH])
+            )
 
-        # Extract visual features
-        posts_with_visual_features = self.extract_visual_features(posts_with_hook)
+            processed_batches.append(processed_batch)
 
-        # Extract keyframe features
-        posts_with_style_features = self.extract_style_features(posts_with_visual_features)
-
-        # Extract voice script and on-screen elements
-
-        # Extract voice features
-
-        # Extract background music features
-
-        # Extract 3rd party footage features
-        return posts_with_style_features
+        return pd.concat(processed_batches, ignore_index=True)
 
     def download_videos(self, df: DataFrame) -> DataFrame:
         self.scraper.open_browser()
@@ -54,14 +52,15 @@ class IngestionService:
         for index, row in df.iterrows():
             url = row['url']
             post_id = row['post_id']
-            vid_link = self._get_s3_video_link(url, post_id)
-            df.at[index, "video_link"] = vid_link
+            s3_video_link, local_video_path = self._get_video_links(url, post_id)
+            df.at[index, Config.S3_VIDEO_URL] = s3_video_link
+            df.at[index, Config.LOCAL_VIDEO_PATH] = local_video_path
 
         self.scraper.close_browser()
         return df
 
     def transcribe(self, df: DataFrame) -> DataFrame:
-        df["full_script"] = df["video_link"].apply(self._transcribe_video)
+        df = df.apply(self._transcribe_video, axis=1)
         return df
 
     def add_hook(self, df: DataFrame) -> DataFrame:
@@ -69,112 +68,121 @@ class IngestionService:
         return df
 
     def extract_visual_features(self, df: DataFrame) -> DataFrame:
-        return df.apply(self._extract_visual_features, axis=1)
+        df = df.apply(self._extract_visual_features, axis=1)
+        return df
 
     def extract_style_features(self, df: DataFrame) -> DataFrame:
-        return df.apply(self._extract_style_features, axis=1)
+        df = df.apply(self._extract_style_features, axis=1)
+        return df
+
+    def extract_audio_features(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._extract_audio_features, axis=1)
+        return df
+
+    def cleanup(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._cleanup_local_files, axis=1)
+        return df
 
     """
         Helper functions
     """
 
-    def _get_s3_video_link(self, video_url: str, post_id: str) -> str | None:
+    def _cleanup_local_files(self, row):
+        audio_file_path = row[Config.LOCAL_AUDIO_PATH]
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+
+        if audio_file_path and os.path.exists(audio_file_path):
+            os.remove(audio_file_path)
+
+        if video_file_path and os.path.exists(video_file_path):
+            os.remove(video_file_path)
+
+        return row
+
+    def _get_video_links(self, video_url: str, post_id: str) -> tuple[str | None, str | None]:
+        """
+        :param video_url:
+        :param post_id:
+        :return:
+        tuple[s3 video link, local video link]
+        """
         filename = f"tiktok_{post_id}.mp4"
 
+        temp_dir = tempfile.gettempdir()
+        local_path = os.path.join(temp_dir, filename)
+
         if self.s3.exists_in_bucket(self.video_bucket, filename):
-            print(f"Video already exists: {filename}")
-            return f"s3://{self.video_bucket}/{filename}"
+            print(f"Video already exists in S3: {filename}")
+            s3_link = f"s3://{self.video_bucket}/{filename}"
+            if self.s3.download_from_s3(s3_link, local_path):
+                return s3_link, local_path
+            else:
+                return s3_link, None
+        else:
+            temp_file = self.scraper.download_video(video_url, filename)
+            if temp_file is None:
+                return None, None
 
-        temp_file = self.scraper.download_video(video_url, filename)
-        if temp_file is None:
-            return None
-        video_link = self.s3.upload_to_s3(self.video_bucket, filename, temp_file)
-        os.remove(temp_file)
+            s3_link = self.s3.upload_to_s3(self.video_bucket, filename, temp_file)
+            # os.remove(temp_file)
 
-        # Wait for 5-15 secs before downloading the next video
-        time.sleep(random.randint(5, 15))
-        return video_link
+            # Wait for 5-15 secs before downloading the next visual
+            time.sleep(random.randint(5, 15))
+            return s3_link, temp_file
 
-    def _transcribe_video(self, s3_url: str) -> str | None:
-        video_filename = os.path.basename(s3_url)
-        video_dir = tempfile.gettempdir()
+    def _transcribe_video(self, row):
 
-        video_file_path = f"{video_dir}/{video_filename}"
-        audio_file_path = f"{video_dir}/{os.path.splitext(video_filename)[0]}.wav"
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        video_dir = os.path.dirname(video_file_path)
+        video_filename = os.path.basename(video_file_path)
 
-        if not self.s3.download_from_s3(s3_url, video_file_path):
-            return None
+        audio_file_path = f"{os.path.join(video_dir, os.path.splitext(video_filename)[0])}.wav"
 
         if not extract_audio(video_file_path, audio_file_path):
-            return None
+            row[Config.TRANSCRIPT] = None
+            row[Config.LOCAL_AUDIO_PATH] = None
+            return row
 
         print("Transcribing audio...")
         transcription = self.feature_extraction_service.transcribe(audio_file_path)
 
-        # cleanup
-        os.remove(video_file_path)
-        os.remove(audio_file_path)
+        row[Config.TRANSCRIPT] = transcription
+        row[Config.LOCAL_AUDIO_PATH] = audio_file_path
 
-        return transcription
+        return row
 
     def _get_hook(self, row):
-        s3_url = row["video_link"]
-        full_script = row["full_script"]
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        full_script = row[Config.TRANSCRIPT]
 
-        video_filename = os.path.basename(s3_url)
-        video_dir = tempfile.gettempdir()
-        video_file_path = f"{video_dir}/{video_filename}"
+        hook = self.feature_extraction_service.get_audio_visual_hook(video_file_path, full_script)
 
-        if not self.s3.download_from_s3(s3_url, video_file_path):
-            row["screen_hook"] = None
-            row["audio_hook"] = None
-            row["style"] = None
-            return row
-
-        visual_hook = self.feature_extraction_service.get_visual_hook(video_file_path, full_script)
-
-        os.remove(video_file_path)
-
-        row["screen_hook"] = visual_hook["screen_hook"]
-        row["audio_hook"] = visual_hook["audio_hook"]
-        row["style"] = visual_hook["shooting_style"].__dict__
+        row[Config.HOOK] = hook
 
         return row
 
     def _extract_visual_features(self, row):
-        # download video locally
-        s3_url = row['video_link']
-        video_filename = os.path.basename(s3_url)
-        video_dir = tempfile.gettempdir()
-        video_file_path = f"{video_dir}/{video_filename}"
-
-        if not self.s3.download_from_s3(s3_url, video_file_path):
-            row["visual"] = None
-            return row
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
 
         visual_features = self.feature_extraction_service.get_visual_features(video_file_path)
 
-        # cleanup
-        os.remove(video_file_path)
-
-        row["visual"] = visual_features
+        row[Config.VISUAL] = visual_features
         return row
 
     def _extract_style_features(self, row):
-        s3_url = row["video_link"]
-
-        video_filename = os.path.basename(s3_url)
-        video_dir = tempfile.gettempdir()
-        video_file_path = f"{video_dir}/{video_filename}"
-
-        if not self.s3.download_from_s3(s3_url, video_file_path):
-            row["creator_visible"] = None
-            row["product_visible"] = None
-            return row
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
 
         style_features = self.feature_extraction_service.get_style_features(video_file_path)
 
-        row["creator_visible"] = style_features["creator_visible"]
-        row["product_visible"] = style_features["product_visible"]
+        row[Config.STYLE] = style_features
 
+        return row
+
+    def _extract_audio_features(self, row):
+
+        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+
+        audio_features = self.feature_extraction_service.get_audio_features(video_file_path)
+
+        row[Config.AUDIO] = audio_features
         return row
