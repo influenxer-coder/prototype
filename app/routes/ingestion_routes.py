@@ -17,9 +17,9 @@ def ingest_records() -> Response:
     posts = get_dataframe(data)
 
     # TODO: remove this line later
-    posts = posts.head()
+    # posts = posts.head()
 
     response = ingestion_service.process(posts)
 
-    response = get_dict(response)
+    response = get_dict(response)  # validate this
     return jsonify(response)

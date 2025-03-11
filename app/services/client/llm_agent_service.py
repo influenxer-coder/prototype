@@ -105,7 +105,7 @@ class LlmAgentService:
         Generate screenplay from video analysis and complete transcript.
         """
         try:
-            prompt_template = load_prompt('screenplay_generator')
+            prompt_template = load_prompt('screenplay_generator', provider='recommendation')
 
             content = [
                 {"type": "text", "text": prompt_template},
@@ -232,6 +232,12 @@ class LlmAgentService:
 
         visual_style_summary = self.generate_visual_style(frame)
 
+        """
+        We should remove the below code. 
+        We are asking LLM to generate something without providing much context.
+        [hook_analysis_generator] prompt
+        """
+
         transcript = transcript if transcript else ''
         transcript = transcript if len(transcript) <= 500 else transcript[:500] + '...'
 
@@ -285,7 +291,7 @@ class LlmAgentService:
     def suggest_edits(self, comparison_request: dict) -> Optional[str]:
 
         try:
-            prompt = load_prompt('edit_recommendations')
+            prompt = load_prompt('edit_recommendations', provider='recommendation')
 
             content = [{
                 "type": "text",
@@ -301,7 +307,7 @@ class LlmAgentService:
             print(f"Error in suggest_edits: {str(e)}")
             return None
 
-    def generate_keyframe_analysis(self, keyframes: List[tuple]) -> dict:
+    def generate_style_features(self, keyframes: List[tuple]) -> dict:
         """
         Analyze keyframes to describe video properties
 
@@ -317,7 +323,7 @@ class LlmAgentService:
                 "product_visible": None
             }
 
-        prompt = load_prompt('keyframe_analysis_generator')
+        prompt = load_prompt('style_feature_extractor')
 
         image_contents = [frame_to_base64(keyframe[2]) for keyframe in keyframes]
 

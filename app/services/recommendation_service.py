@@ -3,24 +3,23 @@ import tempfile
 from typing import List
 
 from app.models.video import KeyframeContext, Video
-from app.services.audio_service import AudioService
-from app.services.llm_agent_service import LlmAgentService
+from app.services.client.llm_agent_service import LlmAgentService
+from app.services.feature_extraction_service import FeatureExtractionService
 from app.utils.audio import extract_audio
-from app.utils.video import extract_keyframes, get_video_duration_cv2
 
 
 class RecommendationService:
     def __init__(self):
-        self.audio_service = AudioService()
+        self.feature_extraction_service = FeatureExtractionService()
         self.llm_agent_service = LlmAgentService()
 
     def process_video(self, video_path: str, caption: str):
         """Process video and generate analysis."""
 
-        video_duration = get_video_duration_cv2(video_path)
+        video_duration = self.feature_extraction_service.get_video_duration(video_path)
 
         print("Extracting keyframes...")
-        keyframes = extract_keyframes(video_path, video_duration)
+        keyframes = self.feature_extraction_service.get_keyframes(video_path, video_duration)
         print(f"Found {len(keyframes)} keyframes")
 
         audio_dir = tempfile.gettempdir()
@@ -31,7 +30,7 @@ class RecommendationService:
             print(f"Error in extracting audio to {audio_path}")
             raise ValueError(f"Unable to extract audio from {video_path}")
 
-        complete_transcript = self.audio_service.transcribe(audio_path)
+        complete_transcript = self.feature_extraction_service.transcribe(audio_path)
 
         print("Processing audio for each keyframe...")
         keyframe_contexts = []
@@ -40,7 +39,7 @@ class RecommendationService:
             print(f"Processing keyframe {i + 1}/{len(keyframes)}")
             start_time = 0 if i == 0 else keyframes[i - 1][1]
 
-            audio_transcript = self.audio_service.transcribe(
+            audio_transcript = self.feature_extraction_service.transcribe(
                 audio_path,
                 start_time,
                 timestamp

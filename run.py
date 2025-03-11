@@ -1,10 +1,7 @@
-import io
-import sys
-
 from flask_cors import CORS
 
 from app import create_app
-from app.services.scraper_service import ScraperService
+from app.services.client.scraper_service import ScraperService
 
 app = create_app()
 

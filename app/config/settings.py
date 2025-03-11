@@ -37,6 +37,7 @@ class Config:
     AWS_ACCESS_KEY = os.getenv('AWS_ACCESS_KEY')
     AWS_SECRET_KEY = os.getenv('AWS_SECRET_KEY')
     AWS_REGION = "us-east-2"
+    AWS_S3_BUCKET = "tapestry-tiktok-videos"
 
     # Scoring Settings
     WEIGHTS = {
@@ -46,3 +47,16 @@ class Config:
         "play_count": 0.2,  # Views
         "recentness": 0.1  # Recentness
     }
+
+    # Mini batch size for processing videos
+    BATCH_SIZE = 10
+
+    # Dataframe constants
+    LOCAL_VIDEO_PATH = "local_video_path"
+    LOCAL_AUDIO_PATH = "local_audio_path"
+    S3_VIDEO_URL = "s3_video_url"
+    TRANSCRIPT = "transcript"
+    STYLE = "style"
+    HOOK = "hook"
+    VISUAL = "visual"
+    AUDIO = "audio"
