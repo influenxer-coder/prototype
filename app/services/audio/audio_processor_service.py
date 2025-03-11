@@ -25,7 +25,7 @@ warnings.filterwarnings('ignore')
 
 
 class AudioProcessorService:
-    def __init__(self, audio_model: str = 'google', output_dir='audio_analysis'):
+    def __init__(self, audio_model: str = 'whisper', output_dir='audio_analysis'):
         self.recognizer = sr.Recognizer()
         self.model = audio_model
         self.output_dir = output_dir
@@ -38,17 +38,18 @@ class AudioProcessorService:
         self.temp_dir = tempfile.mkdtemp()
 
     def transcribe(self, audio_path: str, start_time: float | None = None, end_time: float | None = None) -> str:
-        if start_time and end_time:
+        if start_time is not None and end_time is not None:
             duration = end_time - start_time
             offset = start_time
         else:
             duration = offset = None
         try:
             with sr.AudioFile(audio_path) as source:
-                audio = self.recognizer.record(source, duration, offset)
+                audio = self.recognizer.record(source, duration=duration, offset=offset)
                 return self._get_transcript(audio)
         except sr.UnknownValueError:
-            print(f"No speech detected between {start_time:.2f}s and {end_time:.2f}s")
+            if start_time is not None and end_time is not None:
+                print(f"No speech detected between {start_time:.2f}s and {end_time:.2f}s")
             return ""
         except Exception as e:
             print(f"Error transcribing audio: {e}")

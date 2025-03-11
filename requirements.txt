@@ -38,3 +38,4 @@ soundfile
 pydub
 moviepy
 ffmpeg
+openai-whisper
