@@ -6,7 +6,7 @@ from flask import Blueprint, request, jsonify
 from app.models.video import Video
 from app.services.recommendation_service import RecommendationService
 
-bp = Blueprint('visual', __name__)
+bp = Blueprint('video', __name__)
 recommendation_service = RecommendationService()
 
 

@@ -17,7 +17,7 @@ def ingest_records() -> Response:
     posts = get_dataframe(data)
 
     # TODO: remove this line later
-    # posts = posts.head()
+    posts = posts.head(15)
 
     response = ingestion_service.process(posts)
 

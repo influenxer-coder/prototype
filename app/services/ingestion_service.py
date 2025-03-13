@@ -6,12 +6,12 @@ import time
 import pandas as pd
 from pandas.core.frame import DataFrame
 
-from app.services.feature_extraction_service import FeatureExtractionService
+from app.config.settings import Config
 from app.services.client.s3_service import S3Service
 from app.services.client.scraper_service import ScraperService
+from app.services.feature_extraction_service import FeatureExtractionService
 from app.utils.audio import extract_audio
 from app.utils.dataframe import calculate_impact_scores
-from app.config.settings import Config
 
 
 class IngestionService:
@@ -126,7 +126,7 @@ class IngestionService:
             s3_link = self.s3.upload_to_s3(self.video_bucket, filename, temp_file)
             # os.remove(temp_file)
 
-            # Wait for 5-15 secs before downloading the next visual
+            # Wait for 5-15 secs before downloading the next video
             time.sleep(random.randint(5, 15))
             return s3_link, temp_file
 

@@ -1,27 +1,20 @@
 import os
-
-import speech_recognition as sr
-from speech_recognition import AudioData
-
-import os
-import json
-import shutil
 import tempfile
-import numpy as np
-import pandas as pd
-import librosa
-import requests
-import parselmouth
-from parselmouth.praat import call
-from scipy.signal import butter, filtfilt
-import noisereduce as nr
-import soundfile as sf
-from pydub import AudioSegment
-from moviepy.video.io.VideoFileClip import VideoFileClip
 import warnings
 
-warnings.filterwarnings('ignore')
+import librosa
+import noisereduce as nr
+import numpy as np
+import parselmouth
+import soundfile as sf
+import speech_recognition as sr
+from moviepy.video.io.VideoFileClip import VideoFileClip
+from parselmouth.praat import call
+from pydub import AudioSegment
+from scipy.signal import butter, filtfilt
+from speech_recognition import AudioData
 
+warnings.filterwarnings('ignore')
 
 
 class AudioProcessorService:
@@ -63,10 +56,10 @@ class AudioProcessorService:
 
     def extract_audio(self, video_path):
         """
-        Extract audio from visual file.
+        Extract audio from video file.
 
         Args:
-            video_path (str): Path to visual file
+            video_path (str): Path to video file
 
         Returns:
             str: Path to extracted audio file
@@ -467,7 +460,7 @@ class AudioProcessorService:
         audio_path = self.extract_audio(video_path)
 
         if not audio_path:
-            print(f"Failed to extract audio from visual at {video_path}")
+            print(f"Failed to extract audio from video at {video_path}")
             return None
 
         # Analyze audio features

@@ -35,7 +35,7 @@ class Input(BaseModel):
 
 
 class VideoRequest(BaseModel):
-    # Basic visual information
+    # Basic video information
     url: HttpUrl
     post_id: str
     description: str
@@ -52,7 +52,7 @@ class VideoRequest(BaseModel):
     # Content metadata
     hashtags: List[str]
     original_sound: str
-    post_type: str = "visual"
+    post_type: str = "video"
     width: int
     ratio: str
 

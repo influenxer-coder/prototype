@@ -1,12 +1,11 @@
-import os
 from typing import Optional, List
 
 import cv2
 
 from app.models.video import KeyframeContext
 from app.services.audio.audio_processor_service import AudioProcessorService
-from app.services.visual.video_processor_service import VideoProcessorService
 from app.services.client.llm_agent_service import LlmAgentService
+from app.services.visual.video_processor_service import VideoProcessorService
 from app.utils.transcript import get_audio_hook
 
 
@@ -18,7 +17,7 @@ class FeatureExtractionService:
 
     def get_video_duration(self, video_path: str) -> float:
         """
-        Get visual duration using OpenCV.
+        Get video duration using OpenCV.
         Returns duration in seconds.
         """
         cap = cv2.VideoCapture(video_path)
@@ -102,4 +101,3 @@ class FeatureExtractionService:
 
     def get_audio_features(self, video_path: str):
         return self.audio_processor.extract_audio_features(video_path)
-
