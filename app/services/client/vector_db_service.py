@@ -1,73 +1,23 @@
 from typing import List
 
-from weaviate.collections.classes.config import Configure, Property, DataType
 from weaviate.util import generate_uuid5
 
 
 class VectorDBService:
     def __init__(self, client):
         self.client = client
-        self.schema = {
-            'collection_name': 'Post',
-            'vectorizer': Configure.Vectorizer.text2vec_openai(
-                model="text-embedding-3-large"
-            ),
-            'primary_key': 'post_id',
-            'properties': [
-                Property(
-                    name="post_id",
-                    data_type=DataType.TEXT,
-                    skip_vectorization=True
-                ),
-                Property(
-                    name="url",
-                    data_type=DataType.TEXT,
-                    skip_vectorization=True
-                ),
-                Property(
-                    name="description",
-                    data_type=DataType.TEXT
-                ),
-                Property(
-                    name="impact_score",
-                    data_type=DataType.NUMBER,
-                    skip_vectorization=True
-                ),
-                Property(
-                    name="search_term",
-                    data_type=DataType.TEXT
-                ),
-                Property(
-                    name="transcript",
-                    data_type=DataType.TEXT
-                ),
-                Property(
-                    name="text_elements",
-                    data_type=DataType.TEXT
-                ),
-                Property(
-                    name="shooting_style",
-                    data_type=DataType.TEXT,
-                    skip_vectorization=True
-                ),
-                Property(
-                    name="object",
-                    data_type=DataType.TEXT,
-                    skip_vectorization=True,
-                    index_filterable=False,
-                    index_searchable=False
-                )
-            ]
-        }
 
-    def create_collection(self) -> bool:
-        collection_name = self.schema['collection_name']
-        properties = self.schema['properties']
-        vectorizer = self.schema['vectorizer']
+    def create_collection(self, schema: dict) -> bool:
+        collection_name = schema.get('collection_name', None)
+        properties = schema.get('properties', None)
+        vectorizer = schema.get('vectorizer', None)
+
+        if not collection_name or not properties or not vectorizer:
+            print(f"Error: Incorrect schema object - {schema}")
+            return False
 
         try:
             if self.client.collections.exists(collection_name):
-                print(f"Collection already exists: {collection_name}")
                 return True
 
             self.client.collections.create(
@@ -81,9 +31,17 @@ class VectorDBService:
             print(f"Error in creating/checking collection: {e}")
             return False
 
-    def batch_add(self, records: List[dict]):
-        collection_name = self.schema['collection_name']
-        primary_key = self.schema['primary_key']
+    def batch_add(self, schema: dict, records: List[dict]):
+        collection_name = schema.get('collection_name', None)
+        primary_key = schema.get('primary_key', None)
+
+        if not collection_name or not primary_key:
+            print(f"Error: Incorrect schema object - {schema}")
+            return False
+
+        if not self.client.collections.exists(collection_name):
+            print(f"Error: Collection does not exist - {collection_name}")
+            return False
 
         collection = self.client.collections.get(collection_name)
 
@@ -106,8 +64,8 @@ class VectorDBService:
         print(f"Added batch of size {len(records)} to the Vector DB")
         return True
 
-    def record_exists(self, primary_key: any) -> bool:
-        collection_name = self.schema['collection_name']
+    def record_exists(self, schema: dict, primary_key: any) -> bool:
+        collection_name = schema['collection_name']
 
         record_uuid = generate_uuid5(primary_key)
         collection = self.client.collections.get(collection_name)

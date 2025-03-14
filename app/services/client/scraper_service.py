@@ -2,39 +2,14 @@ import os
 import tempfile
 
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 
 class ScraperService:
-    def __init__(self):
-        self.driver = None
-
-    def open_browser(self):
-        # Set up Chrome options
-        chrome_options = Options()
-        chrome_options.add_argument("--headless")  # Run in headless mode
-        chrome_options.add_argument("--disable-gpu")
-        chrome_options.add_argument("--no-sandbox")
-        chrome_options.add_argument("--disable-dev-shm-usage")
-        chrome_options.add_argument("--disable-webrtc")
-        chrome_options.add_argument("--disable-3d-apis")
-        chrome_options.add_argument("--enable-unsafe-swiftshader")
-        chrome_options.add_argument("--log-level=3")  # Suppress logs
-
-        # Initialize the WebDriver
-        self.driver = webdriver.Chrome(service=Service(), options=chrome_options)
-
-        # Enable network logging
-        self.driver.execute_cdp_cmd("Network.enable", {})
-
-    def close_browser(self):
-        if self.driver and self.driver.service.is_connectable():
-            self.driver.quit()
+    def __init__(self, driver):
+        self.driver = driver
 
     def download_video(self, video_url: str, filename: str) -> str | None:
         temp_dir = tempfile.gettempdir()

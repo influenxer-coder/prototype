@@ -6,8 +6,9 @@ from typing import List, Optional
 
 from pandas.core.frame import DataFrame
 
-from app import weaviate_client
+from app import weaviate_client, selenium_driver
 from app.config.settings import Config
+from app.models import post as Post
 from app.services.client.s3_service import S3Service
 from app.services.client.scraper_service import ScraperService
 from app.services.client.vector_db_service import VectorDBService
@@ -21,13 +22,12 @@ class IngestionService:
         self.feature_extraction_service = FeatureExtractionService()
         self.s3 = S3Service()
         self.vector_db = VectorDBService(weaviate_client)
-        self.scraper = ScraperService()
+        self.scraper = ScraperService(selenium_driver)
         self.video_bucket = Config.AWS_S3_BUCKET
 
     def process(self, posts: DataFrame) -> List[dict]:
         processed_batches = []
 
-        self.scraper.open_browser()
         batch_size = Config.BATCH_SIZE
 
         for start in range(0, len(posts), batch_size):
@@ -53,11 +53,10 @@ class IngestionService:
             saved_batch = self.add_to_vector_db(processed_batch)
             processed_batches.extend(saved_batch)
 
-        self.scraper.close_browser()
         return processed_batches
 
     def filter_records(self, df: DataFrame) -> DataFrame:
-        df = df[~df['post_id'].apply(self.vector_db.record_exists)]
+        df = df[~df['post_id'].apply(lambda x: self.vector_db.record_exists(Post.get_schema(), x))]
         return df
 
     def download_videos(self, df: DataFrame) -> DataFrame:
@@ -95,11 +94,11 @@ class IngestionService:
         return df
 
     def add_to_vector_db(self, df: DataFrame) -> Optional[List[dict]]:
-        if not self.vector_db.create_collection():
+        if not self.vector_db.create_collection(Post.get_schema()):
             return None
         try:
             posts = create_db_objects(df)
-            if not self.vector_db.batch_add(posts):
+            if not self.vector_db.batch_add(Post.get_schema(), posts):
                 return None
             return posts
         except Exception as e:

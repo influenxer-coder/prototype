@@ -4,6 +4,9 @@ import sys
 
 import weaviate
 from flask import Flask
+from selenium import webdriver
+from selenium.webdriver.chrome.options import Options
+from selenium.webdriver.chrome.service import Service
 from weaviate.auth import Auth
 from weaviate.client import WeaviateClient
 
@@ -11,6 +14,7 @@ from app.config.settings import Config
 
 # Global variables
 weaviate_client = None
+selenium_driver = None
 
 
 def create_app(config_class=Config):
@@ -19,6 +23,8 @@ def create_app(config_class=Config):
 
     # Initialize clients connections
     global weaviate_client
+    global selenium_driver
+    selenium_driver = connect_to_browser()
     weaviate_client = connect_weaviate_db()
 
     # Register shutdown functions
@@ -48,13 +54,45 @@ def connect_weaviate_db() -> WeaviateClient:
     return client
 
 
+def connect_to_browser():
+    # Set up Chrome options
+    chrome_options = Options()
+    chrome_options.add_argument("--headless")  # Run in headless mode
+    chrome_options.add_argument("--disable-gpu")
+    chrome_options.add_argument("--no-sandbox")
+    chrome_options.add_argument("--disable-dev-shm-usage")
+    chrome_options.add_argument("--disable-webrtc")
+    chrome_options.add_argument("--disable-3d-apis")
+    chrome_options.add_argument("--enable-unsafe-swiftshader")
+    chrome_options.add_argument("--log-level=3")  # Suppress logs
+
+    # Initialize the WebDriver
+    driver = webdriver.Chrome(service=Service(), options=chrome_options)
+
+    # Enable network logging
+    driver.execute_cdp_cmd("Network.enable", {})
+    return driver
+
+
 def shutdown_app():
     """Perform cleanup when app shuts down"""
     print("Application shutting down, cleaning up resources...")
+    close_weaviate_connection()
+    close_selenium_driver()
+
+
+def close_weaviate_connection():
     global weaviate_client
     if weaviate_client:
         print("Cleaning up Weaviate connections")
         weaviate_client.close()
+
+
+def close_selenium_driver():
+    global selenium_driver
+    if selenium_driver and selenium_driver.service.is_connectable():
+        print("Closing selenium browser")
+        selenium_driver.quit()
 
 
 def handle_shutdown_signal(sig, frame):
