@@ -54,7 +54,9 @@ class Config:
     # Dataframe constants
     LOCAL_VIDEO_PATH = "local_video_path"
     LOCAL_AUDIO_PATH = "local_audio_path"
+    LOCAL_SPEECH_PATH = "local_speech_path"
     S3_VIDEO_URL = "s3_video_url"
+    SHOOTING_STYLE = "shooting_style"
     TRANSCRIPT = "transcript"
     STYLE = "style"
     HOOK = "hook"

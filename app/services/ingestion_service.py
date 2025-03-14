@@ -38,8 +38,9 @@ class IngestionService:
                 .pipe(self.add_hook)
                 .pipe(self.extract_visual_features)
                 .pipe(self.extract_audio_features)
+                .pipe(self.extract_shooting_style)
                 .pipe(self.cleanup)
-                .drop(columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH])
+                .drop(columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH, Config.LOCAL_SPEECH_PATH])
             )
 
             processed_batches.append(processed_batch)
@@ -79,6 +80,10 @@ class IngestionService:
         df = df.apply(self._extract_audio_features, axis=1)
         return df
 
+    def extract_shooting_style(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._extract_shooting_style, axis=1)
+        return df
+
     def cleanup(self, df: DataFrame) -> DataFrame:
         df = df.apply(self._cleanup_local_files, axis=1)
         return df
@@ -88,12 +93,14 @@ class IngestionService:
     """
 
     def _cleanup_local_files(self, row):
+        speech_file_path = row[Config.LOCAL_SPEECH_PATH]
         audio_file_path = row[Config.LOCAL_AUDIO_PATH]
         video_file_path = row[Config.LOCAL_VIDEO_PATH]
 
+        if speech_file_path and os.path.exists(speech_file_path):
+            os.remove(speech_file_path)
         if audio_file_path and os.path.exists(audio_file_path):
             os.remove(audio_file_path)
-
         if video_file_path and os.path.exists(video_file_path):
             os.remove(video_file_path)
 
@@ -171,18 +178,40 @@ class IngestionService:
 
     def _extract_style_features(self, row):
         video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        transcript = row[Config.TRANSCRIPT]
 
-        style_features = self.feature_extraction_service.get_style_features(video_file_path)
+        style_features = self.feature_extraction_service.get_style_features(video_file_path, transcript)
 
         row[Config.STYLE] = style_features
 
         return row
 
     def _extract_audio_features(self, row):
+        audio_file_path = row[Config.LOCAL_AUDIO_PATH]
 
-        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        if audio_file_path is None:
+            row[Config.LOCAL_SPEECH_PATH] = None
+            row[Config.AUDIO] = None
+            return row
 
-        audio_features = self.feature_extraction_service.get_audio_features(video_file_path)
+        print(f"Generating Audio features...")
+        speech_audio_path = self.feature_extraction_service.isolate_speech(audio_file_path)
 
+        if speech_audio_path is None:
+            row[Config.LOCAL_SPEECH_PATH] = None
+            row[Config.AUDIO] = None
+            return row
+
+        audio_features = self.feature_extraction_service.get_audio_features(speech_audio_path)
+
+        row[Config.LOCAL_SPEECH_PATH] = speech_audio_path
         row[Config.AUDIO] = audio_features
+        return row
+
+    def _extract_shooting_style(self, row):
+        style = row[Config.STYLE]
+        full_script = row[Config.TRANSCRIPT]
+
+        shooting_style = self.feature_extraction_service.get_shooting_style(style, full_script)
+        row[Config.SHOOTING_STYLE] = shooting_style
         return row

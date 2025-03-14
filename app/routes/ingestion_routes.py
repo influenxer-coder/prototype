@@ -21,5 +21,5 @@ def ingest_records() -> Response:
 
     response = ingestion_service.process(posts)
 
-    response = get_dict(response)  # validate this
+    response = get_dict(response)
     return jsonify(response)

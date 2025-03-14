@@ -1,6 +1,6 @@
 import os
-import tempfile
 import warnings
+from typing import Optional
 
 import librosa
 import noisereduce as nr
@@ -8,7 +8,6 @@ import numpy as np
 import parselmouth
 import soundfile as sf
 import speech_recognition as sr
-from moviepy.video.io.VideoFileClip import VideoFileClip
 from parselmouth.praat import call
 from pydub import AudioSegment
 from scipy.signal import butter, filtfilt
@@ -18,17 +17,9 @@ warnings.filterwarnings('ignore')
 
 
 class AudioProcessorService:
-    def __init__(self, audio_model: str = 'whisper', output_dir='audio_analysis'):
+    def __init__(self, audio_model: str = 'whisper'):
         self.recognizer = sr.Recognizer()
         self.model = audio_model
-        self.output_dir = output_dir
-
-        # Create output directory if it doesn't exist
-        if not os.path.exists(output_dir):
-            os.makedirs(output_dir)
-
-        # Create temp directory for downloaded videos and processed audio
-        self.temp_dir = tempfile.mkdtemp()
 
     def transcribe(self, audio_path: str, start_time: float | None = None, end_time: float | None = None) -> str:
         if start_time is not None and end_time is not None:
@@ -53,36 +44,6 @@ class AudioProcessorService:
             return self.recognizer.recognize_google(audio)
         else:
             return self.recognizer.recognize_whisper(audio)
-
-    def extract_audio(self, video_path):
-        """
-        Extract audio from video file.
-
-        Args:
-            video_path (str): Path to video file
-
-        Returns:
-            str: Path to extracted audio file
-        """
-        # Define output audio path
-        base_name = os.path.splitext(os.path.basename(video_path))[0]
-        audio_path = os.path.join(self.temp_dir, f"{base_name}_raw.wav")
-
-        try:
-            # Extract audio using moviepy
-            video = VideoFileClip(video_path)
-            audio = video.audio
-            audio.write_audiofile(audio_path, logger=None)
-            video.close()
-
-            # Process audio to isolate speech
-            processed_audio_path = self.isolate_speech(audio_path)
-
-            return processed_audio_path
-
-        except Exception as e:
-            print(f"Error extracting audio from {audio_path}: {e}")
-            return None
 
     def analyze_pitch(self, audio_path):
         """
@@ -268,7 +229,7 @@ class AudioProcessorService:
             'shimmer': shimmer
         }
 
-    def isolate_speech(self, audio_path):
+    def isolate_speech(self, audio_path) -> Optional[str]:
         """
         Process audio to isolate speech from background music and noise.s
 
@@ -278,105 +239,105 @@ class AudioProcessorService:
         Returns:
             str: Path to processed audio file with isolated speech
         """
-        # Define output path for processed audio
         base_name, ext = os.path.splitext(os.path.basename(audio_path))
-        # Remove _raw suffix if present
-        if base_name.endswith('_raw'):
-            base_name = base_name[:-4]
-        processed_path = os.path.join(self.temp_dir, f"{base_name}_speech_only{ext}")
+        audio_dir = os.path.dirname(audio_path)
+        processed_path = os.path.join(audio_dir, f"{base_name}_speech_only{ext}")
 
-        # Load audio
-        y, sr = librosa.load(audio_path, sr=None)
-
-        # Apply vocal range bandpass filter
-        nyquist = 0.5 * sr
-        low = 80 / nyquist
-        high = 3000 / nyquist
-        b, a = butter(4, [low, high], btype='band')
-        y_filtered = filtfilt(b, a, y)
-
-        # Perform noise reduction
-        y_reduced = nr.reduce_noise(
-            y=y_filtered,
-            sr=sr,
-            prop_decrease=0.8,
-            stationary=False
-        )
-
-        # Speech enhancement using harmonic-percussive source separation
-        y_harmonic, y_percussive = librosa.effects.hpss(y_reduced)
-
-        # Voice Activity Detection
-        S = np.abs(librosa.stft(y_harmonic)) ** 2
-        energy = librosa.feature.rms(S=S)[0]
-
-        # Threshold for speech detection
-        threshold = 0.5 * np.mean(energy) + 0.1 * np.std(energy)
-        speech_frames = energy > threshold
-
-        # Create a mask for speech frames
-        speech_mask = np.zeros_like(y_harmonic)
-        frame_length = 2048
-        hop_length = 512
-
-        for i, is_speech in enumerate(speech_frames):
-            if is_speech:
-                start = i * hop_length
-                end = min(start + frame_length, len(y_harmonic))
-                speech_mask[start:end] = 1.0
-
-        # Apply smoothing to the mask
-        smoothing_window = int(sr * 0.05)  # 50ms smoothing
-        smoothed_mask = np.convolve(speech_mask, np.ones(smoothing_window) / smoothing_window, mode='same')
-        smoothed_mask = np.minimum(smoothed_mask, 1.0)  # Cap at 1.0
-
-        # Apply the mask to get speech-only audio
-        y_speech = y_harmonic * smoothed_mask
-
-        # Check if we have enough speech content
-        speech_energy = np.sum(y_speech ** 2)
-        original_energy = np.sum(y ** 2)
-        speech_ratio = speech_energy / original_energy if original_energy > 0 else 0
-
-        # If low speech content, use less aggressive filtering
-        if speech_ratio < 0.1:
-            y_speech = nr.reduce_noise(y=y, sr=sr)
-
-        # Save the processed audio
-        sf.write(processed_path, y_speech, sr)
-
-        # Additional processing with pydub
         try:
-            # Load processed audio
-            sound = AudioSegment.from_file(processed_path)
+            # Load audio
+            y, sr = librosa.load(audio_path, sr=None)
 
-            # Set silence threshold and duration
-            silence_threshold = -40  # dB
-            min_silence_len = 300  # ms
+            # Apply vocal range bandpass filter
+            nyquist = 0.5 * sr
+            low = 80 / nyquist
+            high = 3000 / nyquist
+            b, a = butter(4, [low, high], btype='band')
+            y_filtered = filtfilt(b, a, y)
 
-            # Split audio on silence
-            chunks = self.split_on_silence(
-                sound,
-                min_silence_len=min_silence_len,
-                silence_thresh=silence_threshold,
-                keep_silence=100  # keep 100ms of silence
+            # Perform noise reduction
+            y_reduced = nr.reduce_noise(
+                y=y_filtered,
+                sr=sr,
+                prop_decrease=0.8,
+                stationary=False
             )
 
-            # Combine non-silent chunks
-            if chunks:
-                result = AudioSegment.empty()
-                for chunk in chunks:
-                    # Normalize volume
-                    chunk = self.normalize_volume(chunk)
-                    result += chunk
+            # Speech enhancement using harmonic-percussive source separation
+            y_harmonic, y_percussive = librosa.effects.hpss(y_reduced)
 
-                # Export the final result
-                result.export(processed_path, format="wav")
+            # Voice Activity Detection
+            S = np.abs(librosa.stft(y_harmonic)) ** 2
+            energy = librosa.feature.rms(S=S)[0]
 
+            # Threshold for speech detection
+            threshold = 0.5 * np.mean(energy) + 0.1 * np.std(energy)
+            speech_frames = energy > threshold
+
+            # Create a mask for speech frames
+            speech_mask = np.zeros_like(y_harmonic)
+            frame_length = 2048
+            hop_length = 512
+
+            for i, is_speech in enumerate(speech_frames):
+                if is_speech:
+                    start = i * hop_length
+                    end = min(start + frame_length, len(y_harmonic))
+                    speech_mask[start:end] = 1.0
+
+            # Apply smoothing to the mask
+            smoothing_window = int(sr * 0.05)  # 50ms smoothing
+            smoothed_mask = np.convolve(speech_mask, np.ones(smoothing_window) / smoothing_window, mode='same')
+            smoothed_mask = np.minimum(smoothed_mask, 1.0)  # Cap at 1.0
+
+            # Apply the mask to get speech-only audio
+            y_speech = y_harmonic * smoothed_mask
+
+            # Check if we have enough speech content
+            speech_energy = np.sum(y_speech ** 2)
+            original_energy = np.sum(y ** 2)
+            speech_ratio = speech_energy / original_energy if original_energy > 0 else 0
+
+            # If low speech content, use less aggressive filtering
+            if speech_ratio < 0.1:
+                y_speech = nr.reduce_noise(y=y, sr=sr)
+
+            # Save the processed audio
+            sf.write(processed_path, y_speech, sr)
+
+            # Additional processing with pydub
+            try:
+                # Load processed audio
+                sound = AudioSegment.from_file(processed_path)
+
+                # Set silence threshold and duration
+                silence_threshold = -40  # dB
+                min_silence_len = 300  # ms
+
+                # Split audio on silence
+                chunks = self.split_on_silence(
+                    sound,
+                    min_silence_len=min_silence_len,
+                    silence_thresh=silence_threshold,
+                    keep_silence=100  # keep 100ms of silence
+                )
+
+                # Combine non-silent chunks
+                if chunks:
+                    result = AudioSegment.empty()
+                    for chunk in chunks:
+                        # Normalize volume
+                        chunk = self.normalize_volume(chunk)
+                        result += chunk
+
+                    # Export the final result
+                    result.export(processed_path, format="wav")
+            except Exception as e:
+                print(f"Warning: Additional audio processing failed - {e}")
+            finally:
+                return processed_path
         except Exception as e:
-            print(f"Warning: Additional audio processing failed - {e}")
-
-        return processed_path
+            print(f"Error in isolating speech sound from audio: {e}")
+            return None
 
     def split_on_silence(self, audio_segment, min_silence_len=1000, silence_thresh=-16, keep_silence=100):
         """
@@ -455,19 +416,12 @@ class AudioProcessorService:
             # If audio is essentially silent, return as is
             return audio_segment
 
-    def extract_audio_features(self, video_path):
-        # Extract audio
-        audio_path = self.extract_audio(video_path)
-
-        if not audio_path:
-            print(f"Failed to extract audio from video at {video_path}")
-            return None
-
+    def extract_audio_features(self, speech_audio_path: str):
         # Analyze audio features
-        pitch_features = self.analyze_pitch(audio_path)
-        volume_features = self.analyze_volume(audio_path)
-        speech_features = self.analyze_speech_rate(audio_path)
-        voice_quality = self.analyze_voice_quality(audio_path)
+        pitch_features = self.analyze_pitch(speech_audio_path)
+        volume_features = self.analyze_volume(speech_audio_path)
+        speech_features = self.analyze_speech_rate(speech_audio_path)
+        voice_quality = self.analyze_voice_quality(speech_audio_path)
 
         audio_features = {
             'pitch': pitch_features,
