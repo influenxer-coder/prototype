@@ -2,28 +2,32 @@ import os
 import random
 import tempfile
 import time
+from typing import List, Optional
 
-import pandas as pd
 from pandas.core.frame import DataFrame
 
+from app import weaviate_client
 from app.config.settings import Config
 from app.services.client.s3_service import S3Service
 from app.services.client.scraper_service import ScraperService
+from app.services.client.vector_db_service import VectorDBService
 from app.services.feature_extraction_service import FeatureExtractionService
 from app.utils.audio import extract_audio
-from app.utils.dataframe import calculate_impact_scores
+from app.utils.dataframe import calculate_impact_scores, create_db_objects
 
 
 class IngestionService:
     def __init__(self):
         self.feature_extraction_service = FeatureExtractionService()
         self.s3 = S3Service()
+        self.vector_db = VectorDBService(weaviate_client)
         self.scraper = ScraperService()
         self.video_bucket = Config.AWS_S3_BUCKET
 
-    def process(self, posts: DataFrame) -> DataFrame:
+    def process(self, posts: DataFrame) -> List[dict]:
         processed_batches = []
 
+        self.scraper.open_browser()
         batch_size = Config.BATCH_SIZE
 
         for start in range(0, len(posts), batch_size):
@@ -31,7 +35,8 @@ class IngestionService:
             batch = posts.iloc[start:end]
 
             processed_batch = (
-                self.download_videos(batch)
+                self.filter_records(batch)
+                .pipe(self.download_videos)
                 .pipe(calculate_impact_scores)
                 .pipe(self.transcribe)
                 .pipe(self.extract_style_features)
@@ -40,16 +45,22 @@ class IngestionService:
                 .pipe(self.extract_audio_features)
                 .pipe(self.extract_shooting_style)
                 .pipe(self.cleanup)
-                .drop(columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH, Config.LOCAL_SPEECH_PATH])
+                .drop(
+                    columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH, Config.LOCAL_SPEECH_PATH],
+                    errors='ignore'
+                )
             )
+            saved_batch = self.add_to_vector_db(processed_batch)
+            processed_batches.extend(saved_batch)
 
-            processed_batches.append(processed_batch)
+        self.scraper.close_browser()
+        return processed_batches
 
-        return pd.concat(processed_batches, ignore_index=True)
+    def filter_records(self, df: DataFrame) -> DataFrame:
+        df = df[~df['post_id'].apply(self.vector_db.record_exists)]
+        return df
 
     def download_videos(self, df: DataFrame) -> DataFrame:
-        self.scraper.open_browser()
-
         for index, row in df.iterrows():
             url = row['url']
             post_id = row['post_id']
@@ -57,7 +68,6 @@ class IngestionService:
             df.at[index, Config.S3_VIDEO_URL] = s3_video_link
             df.at[index, Config.LOCAL_VIDEO_PATH] = local_video_path
 
-        self.scraper.close_browser()
         return df
 
     def transcribe(self, df: DataFrame) -> DataFrame:
@@ -83,6 +93,18 @@ class IngestionService:
     def extract_shooting_style(self, df: DataFrame) -> DataFrame:
         df = df.apply(self._extract_shooting_style, axis=1)
         return df
+
+    def add_to_vector_db(self, df: DataFrame) -> Optional[List[dict]]:
+        if not self.vector_db.create_collection():
+            return None
+        try:
+            posts = create_db_objects(df)
+            if not self.vector_db.batch_add(posts):
+                return None
+            return posts
+        except Exception as e:
+            print(f"Error: Unable to create object for the DB - {e}")
+            return None
 
     def cleanup(self, df: DataFrame) -> DataFrame:
         df = df.apply(self._cleanup_local_files, axis=1)

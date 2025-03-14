@@ -39,6 +39,11 @@ class Config:
     AWS_REGION = "us-east-2"
     AWS_S3_BUCKET = "tapestry-tiktok-videos"
 
+    # Weaviate settings
+    WEAVIATE_URL = os.getenv('WEAVIATE_URL')
+    WEAVIATE_API_KEY = os.getenv('WEAVIATE_API_KEY')
+    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY')
+
     # Scoring Settings
     WEIGHTS = {
         "digg_count": 0.2,  # Likes

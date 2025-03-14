@@ -98,7 +98,7 @@ class FeatureExtractionService:
         return {
             "screen_hook": screen_hook,
             "audio_hook": audio_hook,
-            "shooting_style": shooting_style
+            "shooting_style": shooting_style.__dict__
         }
 
     def isolate_speech(self, audio_path: str) -> Optional[str]:
