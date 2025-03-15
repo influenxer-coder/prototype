@@ -356,3 +356,16 @@ class LlmAgentService:
             'creator_visible': "Face is visible" if face_visible else ("Only hands" if hand_visible else "No"),
             'product_visible': product_visible
         }
+
+    def identify_UGC_style(self, full_script: str) -> Optional[str]:
+        prompt_template = load_prompt('UGC_style_identifier')
+        prompt = prompt_template.replace("{{TRANSCRIPT}}", full_script)
+
+        content = [{"type": "text", "text": prompt}]
+
+        try:
+            response = self._generate_response(content)
+            return response
+        except Exception as e:
+            print(f"API error in UGC style identification: {str(e)}")
+            return None

@@ -2,26 +2,30 @@ import os
 import random
 import tempfile
 import time
+from typing import List, Optional
 
-import pandas as pd
 from pandas.core.frame import DataFrame
 
+from app import weaviate_client, selenium_driver
 from app.config.settings import Config
+from app.models import post as Post
 from app.services.client.s3_service import S3Service
 from app.services.client.scraper_service import ScraperService
+from app.services.client.vector_db_service import VectorDBService
 from app.services.feature_extraction_service import FeatureExtractionService
 from app.utils.audio import extract_audio
-from app.utils.dataframe import calculate_impact_scores
+from app.utils.dataframe import calculate_impact_scores, create_db_objects
 
 
 class IngestionService:
     def __init__(self):
         self.feature_extraction_service = FeatureExtractionService()
         self.s3 = S3Service()
-        self.scraper = ScraperService()
+        self.vector_db = VectorDBService(weaviate_client)
+        self.scraper = ScraperService(selenium_driver)
         self.video_bucket = Config.AWS_S3_BUCKET
 
-    def process(self, posts: DataFrame) -> DataFrame:
+    def process(self, posts: DataFrame) -> List[dict]:
         processed_batches = []
 
         batch_size = Config.BATCH_SIZE
@@ -31,24 +35,31 @@ class IngestionService:
             batch = posts.iloc[start:end]
 
             processed_batch = (
-                self.download_videos(batch)
+                self.filter_records(batch)
+                .pipe(self.download_videos)
                 .pipe(calculate_impact_scores)
                 .pipe(self.transcribe)
                 .pipe(self.extract_style_features)
                 .pipe(self.add_hook)
                 .pipe(self.extract_visual_features)
                 .pipe(self.extract_audio_features)
+                .pipe(self.extract_shooting_style)
                 .pipe(self.cleanup)
-                .drop(columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH])
+                .drop(
+                    columns=[Config.LOCAL_VIDEO_PATH, Config.LOCAL_AUDIO_PATH, Config.LOCAL_SPEECH_PATH],
+                    errors='ignore'
+                )
             )
+            saved_batch = self.add_to_vector_db(processed_batch)
+            processed_batches.extend(saved_batch)
 
-            processed_batches.append(processed_batch)
+        return processed_batches
 
-        return pd.concat(processed_batches, ignore_index=True)
+    def filter_records(self, df: DataFrame) -> DataFrame:
+        df = df[~df['post_id'].apply(lambda x: self.vector_db.record_exists(Post.get_schema(), x))]
+        return df
 
     def download_videos(self, df: DataFrame) -> DataFrame:
-        self.scraper.open_browser()
-
         for index, row in df.iterrows():
             url = row['url']
             post_id = row['post_id']
@@ -56,7 +67,6 @@ class IngestionService:
             df.at[index, Config.S3_VIDEO_URL] = s3_video_link
             df.at[index, Config.LOCAL_VIDEO_PATH] = local_video_path
 
-        self.scraper.close_browser()
         return df
 
     def transcribe(self, df: DataFrame) -> DataFrame:
@@ -79,6 +89,22 @@ class IngestionService:
         df = df.apply(self._extract_audio_features, axis=1)
         return df
 
+    def extract_shooting_style(self, df: DataFrame) -> DataFrame:
+        df = df.apply(self._extract_shooting_style, axis=1)
+        return df
+
+    def add_to_vector_db(self, df: DataFrame) -> Optional[List[dict]]:
+        if not self.vector_db.create_collection(Post.get_schema()):
+            return None
+        try:
+            posts = create_db_objects(df)
+            if not self.vector_db.batch_add(Post.get_schema(), posts):
+                return None
+            return posts
+        except Exception as e:
+            print(f"Error: Unable to create object for the DB - {e}")
+            return None
+
     def cleanup(self, df: DataFrame) -> DataFrame:
         df = df.apply(self._cleanup_local_files, axis=1)
         return df
@@ -88,12 +114,14 @@ class IngestionService:
     """
 
     def _cleanup_local_files(self, row):
+        speech_file_path = row[Config.LOCAL_SPEECH_PATH]
         audio_file_path = row[Config.LOCAL_AUDIO_PATH]
         video_file_path = row[Config.LOCAL_VIDEO_PATH]
 
+        if speech_file_path and os.path.exists(speech_file_path):
+            os.remove(speech_file_path)
         if audio_file_path and os.path.exists(audio_file_path):
             os.remove(audio_file_path)
-
         if video_file_path and os.path.exists(video_file_path):
             os.remove(video_file_path)
 
@@ -171,18 +199,40 @@ class IngestionService:
 
     def _extract_style_features(self, row):
         video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        transcript = row[Config.TRANSCRIPT]
 
-        style_features = self.feature_extraction_service.get_style_features(video_file_path)
+        style_features = self.feature_extraction_service.get_style_features(video_file_path, transcript)
 
         row[Config.STYLE] = style_features
 
         return row
 
     def _extract_audio_features(self, row):
+        audio_file_path = row[Config.LOCAL_AUDIO_PATH]
 
-        video_file_path = row[Config.LOCAL_VIDEO_PATH]
+        if audio_file_path is None:
+            row[Config.LOCAL_SPEECH_PATH] = None
+            row[Config.AUDIO] = None
+            return row
 
-        audio_features = self.feature_extraction_service.get_audio_features(video_file_path)
+        print(f"Generating Audio features...")
+        speech_audio_path = self.feature_extraction_service.isolate_speech(audio_file_path)
 
+        if speech_audio_path is None:
+            row[Config.LOCAL_SPEECH_PATH] = None
+            row[Config.AUDIO] = None
+            return row
+
+        audio_features = self.feature_extraction_service.get_audio_features(speech_audio_path)
+
+        row[Config.LOCAL_SPEECH_PATH] = speech_audio_path
         row[Config.AUDIO] = audio_features
+        return row
+
+    def _extract_shooting_style(self, row):
+        style = row[Config.STYLE]
+        full_script = row[Config.TRANSCRIPT]
+
+        shooting_style = self.feature_extraction_service.get_shooting_style(style, full_script)
+        row[Config.SHOOTING_STYLE] = shooting_style
         return row

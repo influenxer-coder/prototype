@@ -1,7 +1,7 @@
 from flask import Blueprint, request, jsonify, Response
 
 from app.services.ingestion_service import IngestionService
-from app.utils.dataframe import get_dataframe, get_dict
+from app.utils.dataframe import get_dataframe
 
 bp = Blueprint('ingestion_routes', __name__, url_prefix='/ingest')
 
@@ -17,9 +17,13 @@ def ingest_records() -> Response:
     posts = get_dataframe(data)
 
     # TODO: remove this line later
-    posts = posts.head(15)
+    posts = posts.head(25)
 
-    response = ingestion_service.process(posts)
+    saved_posts = ingestion_service.process(posts)
 
-    response = get_dict(response)  # validate this
+    response = {
+        'count': len(saved_posts),
+        'data': saved_posts
+    }
+
     return jsonify(response)

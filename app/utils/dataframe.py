@@ -1,3 +1,4 @@
+import json
 from datetime import datetime
 from typing import Dict, List
 
@@ -41,3 +42,26 @@ def get_dataframe(data: List[Dict]) -> DataFrame:
 
 def get_dict(df: DataFrame) -> List[Dict]:
     return df.to_dict("records")
+
+
+def create_db_objects(df: DataFrame) -> List[dict]:
+    raw_posts = df.to_dict('records')
+    posts = []
+    for post in raw_posts:
+        style = post['style']
+        visual = post['visual']
+        transcript = post["transcript"] if style and style["creator_speaking"] else ""
+        post_obj = {
+            "post_id": str(post["post_id"]),
+            "url": post["url"],
+            "description": post["description"],
+            "impact_score": post["impact_score"],
+            "search_term": post["search_term"],
+            "transcript": transcript,
+            "text_elements": "" if not visual else visual["text_overlay"]["main_text"]["description"],
+            "shooting_style": post["shooting_style"],
+            "object": json.dumps(post)
+        }
+        posts.append(post_obj)
+
+    return posts

@@ -56,16 +56,18 @@ class FeatureExtractionService:
         visual_features = self.llm.generate_visual_features(keyframe_contexts)
         return visual_features
 
-    def get_style_features(self, video_path: str):
+    def get_style_features(self, video_path: str, transcript: str) -> Optional[dict]:
+        creator_speaking = len(transcript.strip()) > 35
         keyframes = self.get_keyframes(video_path)
-        print(f"Extracted {len(keyframes)} keyframes")
 
+        print("Calling AGENT to generate style features...")
         analysis = self.llm.generate_style_features(keyframes)
 
         creator_visible = analysis.get("creator_visible", None)
         product_visible = analysis.get("product_visible", None)
 
         return {
+            "creator_speaking": creator_speaking,
             "creator_visible": creator_visible,
             "product_visible": product_visible
         }
@@ -96,8 +98,41 @@ class FeatureExtractionService:
         return {
             "screen_hook": screen_hook,
             "audio_hook": audio_hook,
-            "shooting_style": shooting_style
+            "shooting_style": shooting_style.__dict__
         }
 
-    def get_audio_features(self, video_path: str):
-        return self.audio_processor.extract_audio_features(video_path)
+    def isolate_speech(self, audio_path: str) -> Optional[str]:
+        return self.audio_processor.isolate_speech(audio_path)
+
+    def get_audio_features(self, speech_audio_path: str):
+        return self.audio_processor.extract_audio_features(speech_audio_path)
+
+    def get_shooting_style(self, style: Optional[dict], full_script: str) -> str:
+        print(f"Extracting Shooting Style...")
+        if style is None:
+            return 'Other'
+
+        if style['creator_visible'] == 'Only hands':
+            if not style['creator_speaking']:
+                return 'Hands & Music'
+            return 'Talking Head Demo'
+        elif style['creator_visible'] == 'Face is visible':
+            if not style['creator_speaking']:
+                return 'Vibes Marketing'
+            print("Calling AGENT to identify UGC Style")
+            return self._get_UGC_type(full_script)
+        else:
+            return 'Other'
+
+    """
+        Helper Function
+    """
+
+    def _get_UGC_type(self, full_script: str) -> str:
+        retry_count = 5
+        while retry_count > 0:
+            style_type = self.llm.identify_UGC_style(full_script)
+            if style_type == 'Hook & Sell' or style_type == 'Problem - Solution':
+                return style_type
+            retry_count -= 1
+        return 'UGC Style'
